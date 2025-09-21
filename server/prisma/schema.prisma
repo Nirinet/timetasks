@@ -1,0 +1,301 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  EMPLOYEE
+  CLIENT
+}
+
+enum ProjectStatus {
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+}
+
+enum TaskStatus {
+  NEW
+  IN_PROGRESS
+  WAITING_CLIENT
+  COMPLETED
+}
+
+enum Priority {
+  URGENT_IMPORTANT // Level 1 - Red
+  IMPORTANT        // Level 2 - Orange
+  NORMAL          // Level 3 - Yellow
+  LOW             // Level 4 - Green
+}
+
+enum TimerStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+enum AlertType {
+  NEW_TASK
+  STATUS_CHANGE
+  NEW_COMMENT
+  TASK_ASSIGNMENT
+  DEADLINE_APPROACHING
+  DEADLINE_EXCEEDED
+  ACTIVE_TIMER
+  NEW_FILE
+  PRIORITY_CHANGE
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  firstName String
+  lastName  String
+  phone     String?
+  role      UserRole
+  isActive  Boolean  @default(true)
+  joinDate  DateTime @default(now())
+  lastLogin DateTime?
+
+  // User preferences
+  emailNotifications Boolean @default(true)
+  timerAlerts       Boolean @default(true)
+  language          String  @default("he")
+
+  // Relations
+  createdClients    Client[]         @relation("ClientCreatedBy")
+  assignedTasks     TaskAssignment[]
+  timeRecords       TimeRecord[]
+  comments          Comment[]
+  uploadedFiles     FileAttachment[]
+  sentAlerts        Alert[]          @relation("AlertSender")
+  receivedAlerts    Alert[]          @relation("AlertReceiver")
+  createdProjects   Project[]        @relation("ProjectCreatedBy")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Client {
+  id            String    @id @default(uuid())
+  name          String
+  contactPerson String
+  phone         String?
+  email         String?
+  address       String?
+  joinDate      DateTime  @default(now())
+  isActive      Boolean   @default(true)
+  notes         String?
+
+  // Relations
+  createdBy     User      @relation("ClientCreatedBy", fields: [createdById], references: [id])
+  createdById   String
+  projects      Project[]
+  assignedTasks TaskAssignment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("clients")
+}
+
+model Project {
+  id          String        @id @default(uuid())
+  name        String
+  description String?
+  startDate   DateTime      @default(now())
+  targetDate  DateTime?
+  status      ProjectStatus @default(ACTIVE)
+  hoursBudget Float?
+  isTemplate  Boolean       @default(false)
+
+  // Relations
+  client      Client    @relation(fields: [clientId], references: [id])
+  clientId    String
+  createdBy   User      @relation("ProjectCreatedBy", fields: [createdById], references: [id])
+  createdById String
+  tasks       Task[]
+  comments    Comment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("projects")
+}
+
+model Task {
+  id              String     @id @default(uuid())
+  title           String
+  description     String?
+  priority        Priority   @default(NORMAL)
+  status          TaskStatus @default(NEW)
+  creationDate    DateTime   @default(now())
+  deadline        DateTime?
+  timeEstimate    Float?     // in hours
+
+  // Hierarchy support
+  parentTask      Task?      @relation("TaskHierarchy", fields: [parentTaskId], references: [id])
+  parentTaskId    String?
+  subtasks        Task[]     @relation("TaskHierarchy")
+
+  // Relations
+  project         Project             @relation(fields: [projectId], references: [id])
+  projectId       String
+  assignedUsers   TaskAssignment[]
+  timeRecords     TimeRecord[]
+  comments        Comment[]
+  files           FileAttachment[]
+  changes         TaskChangeHistory[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("tasks")
+}
+
+model TaskAssignment {
+  id     String @id @default(uuid())
+
+  // Relations
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskId String
+
+  // Can be assigned to either user or client
+  user     User?   @relation(fields: [userId], references: [id])
+  userId   String?
+  client   Client? @relation(fields: [clientId], references: [id])
+  clientId String?
+
+  assignedAt DateTime @default(now())
+  assignedBy String   // User ID who made the assignment
+
+  @@unique([taskId, userId])
+  @@unique([taskId, clientId])
+  @@map("task_assignments")
+}
+
+model TimeRecord {
+  id          String      @id @default(uuid())
+  date        DateTime    @default(now())
+  startTime   DateTime
+  endTime     DateTime?
+  duration    Int?        // in minutes, calculated automatically
+  description String?
+  status      TimerStatus @default(ACTIVE)
+
+  // Relations
+  task        Task        @relation(fields: [taskId], references: [id])
+  taskId      String
+  employee    User        @relation(fields: [employeeId], references: [id])
+  employeeId  String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("time_records")
+}
+
+model Comment {
+  id      String @id @default(uuid())
+  content String
+
+  // Can be attached to task or project
+  task      Task?    @relation(fields: [taskId], references: [id])
+  taskId    String?
+  project   Project? @relation(fields: [projectId], references: [id])
+  projectId String?
+
+  // Relations
+  author    User              @relation(fields: [authorId], references: [id])
+  authorId  String
+  files     FileAttachment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("comments")
+}
+
+model FileAttachment {
+  id           String  @id @default(uuid())
+  filename     String
+  originalName String
+  mimeType     String
+  size         Int
+  path         String
+  version      Int     @default(1)
+
+  // Can be attached to task or comment
+  task      Task?    @relation(fields: [taskId], references: [id])
+  taskId    String?
+  comment   Comment? @relation(fields: [commentId], references: [id])
+  commentId String?
+
+  // Relations
+  uploadedBy   User   @relation(fields: [uploadedById], references: [id])
+  uploadedById String
+
+  createdAt DateTime @default(now())
+
+  @@map("file_attachments")
+}
+
+model Alert {
+  id      String    @id @default(uuid())
+  type    AlertType
+  title   String
+  message String
+  isRead  Boolean   @default(false)
+
+  // Relations
+  sender     User?   @relation("AlertSender", fields: [senderId], references: [id])
+  senderId   String?
+  receiver   User    @relation("AlertReceiver", fields: [receiverId], references: [id])
+  receiverId String
+
+  // Related entities (optional)
+  taskId    String?
+  projectId String?
+
+  createdAt DateTime @default(now())
+
+  @@map("alerts")
+}
+
+model TaskChangeHistory {
+  id        String   @id @default(uuid())
+  field     String   // What field was changed
+  oldValue  String?  // Previous value
+  newValue  String?  // New value
+  action    String   // CREATE, UPDATE, DELETE
+
+  // Relations
+  task      Task     @relation(fields: [taskId], references: [id])
+  taskId    String
+  changedBy String   // User ID who made the change
+
+  createdAt DateTime @default(now())
+
+  @@map("task_change_history")
+}
+
+model SystemSettings {
+  id    String @id @default(uuid())
+  key   String @unique
+  value String
+
+  updatedAt DateTime @updatedAt
+
+  @@map("system_settings")
+}

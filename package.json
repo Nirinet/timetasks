@@ -1,0 +1,21 @@
+{
+  "name": "timetask",
+  "version": "1.0.0",
+  "description": "Hebrew Task Management System for Software Development Company",
+  "main": "index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run server:dev\" \"npm run client:dev\"",
+    "server:dev": "cd server && npm run dev",
+    "client:dev": "cd client && npm run dev",
+    "build": "cd client && npm run build",
+    "server:start": "cd server && npm start",
+    "install:all": "npm install && cd server && npm install && cd ../client && npm install",
+    "setup": "npm run install:all"
+  },
+  "keywords": ["task-management", "hebrew", "rtl", "time-tracking"],
+  "author": "Task Management System",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
