@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import Joi from 'joi';
 import { prisma } from '../index';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { loginRateLimiter, resetLoginAttempts } from '../middleware/loginRateLimiter';
 import { logger } from '../utils/logger';
 
 const router = express.Router();
@@ -52,7 +53,7 @@ const changePasswordSchema = Joi.object({
   })
 });
 
-// Generate JWT token
+// Generate JWT tokens
 const generateTokens = (userId: string) => {
   const accessToken = jwt.sign(
     { userId },
@@ -69,8 +70,8 @@ const generateTokens = (userId: string) => {
   return { accessToken, refreshToken };
 };
 
-// Login
-router.post('/login', async (req, res, next) => {
+// Login with rate limiting
+router.post('/login', loginRateLimiter, async (req, res, next) => {
   try {
     const { error } = loginSchema.validate(req.body);
     if (error) {
@@ -93,25 +94,41 @@ router.post('/login', async (req, res, next) => {
         lastName: true,
         role: true,
         isActive: true,
-        phone: true
+        phone: true,
+        emailNotifications: true,
+        timerAlerts: true,
+        language: true
       }
     });
 
-    if (!user || !user.isActive) {
+    if (!user) {
+      logger.warn('Login attempt with non-existent email', { email, ip: req.ip });
       return res.status(401).json({
         success: false,
         message: 'כתובת דוא"ל או סיסמה שגויים'
+      });
+    }
+
+    if (!user.isActive) {
+      logger.warn('Login attempt on inactive account', { email, ip: req.ip });
+      return res.status(401).json({
+        success: false,
+        message: 'החשבון אינו פעיל. פנה למנהל המערכת'
       });
     }
 
     // Check password
     const isValidPassword = await bcrypt.compare(password, user.password);
     if (!isValidPassword) {
+      logger.warn('Failed login attempt', { email, ip: req.ip });
       return res.status(401).json({
         success: false,
         message: 'כתובת דוא"ל או סיסמה שגויים'
       });
     }
+
+    // Reset login attempts on successful login
+    resetLoginAttempts(req.ip, email);
 
     // Generate tokens
     const { accessToken, refreshToken } = generateTokens(user.id);
@@ -122,20 +139,20 @@ router.post('/login', async (req, res, next) => {
       data: { lastLogin: new Date() }
     });
 
-    logger.info(`User logged in: ${user.email}`);
+    logger.info('User logged in successfully', { 
+      userId: user.id, 
+      email: user.email, 
+      ip: req.ip 
+    });
+
+    // Don't send password in response
+    const { password: _, ...userWithoutPassword } = user;
 
     res.json({
       success: true,
       message: 'התחברות בוצעה בהצלחה',
       data: {
-        user: {
-          id: user.id,
-          email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          role: user.role,
-          phone: user.phone
-        },
+        user: userWithoutPassword,
         accessToken,
         refreshToken
       }
@@ -145,7 +162,7 @@ router.post('/login', async (req, res, next) => {
   }
 });
 
-// Register (Admin only - for creating initial users)
+// Register (Admin only for production, open for first user)
 router.post('/register', async (req, res, next) => {
   try {
     const { error } = registerSchema.validate(req.body);
@@ -157,6 +174,30 @@ router.post('/register', async (req, res, next) => {
     }
 
     const { email, password, firstName, lastName, phone } = req.body;
+
+    // Check if any users exist
+    const userCount = await prisma.user.count();
+    
+    // If users exist, require admin authentication
+    if (userCount > 0) {
+      // Apply authentication middleware
+      const authMiddleware = authenticateToken as any;
+      await new Promise((resolve, reject) => {
+        authMiddleware(req, res, (err: any) => {
+          if (err) reject(err);
+          else resolve(undefined);
+        });
+      });
+
+      // Check if user is admin
+      const authReq = req as AuthRequest;
+      if (!authReq.user || authReq.user.role !== 'ADMIN') {
+        return res.status(403).json({
+          success: false,
+          message: 'רק מנהל מערכת יכול ליצור משתמשים חדשים'
+        });
+      }
+    }
 
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
@@ -173,8 +214,7 @@ router.post('/register', async (req, res, next) => {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, parseInt(process.env.BCRYPT_ROUNDS || '12'));
 
-    // Create user (first user is admin, rest are employees by default)
-    const userCount = await prisma.user.count();
+    // First user is admin, rest are employees by default
     const role = userCount === 0 ? 'ADMIN' : 'EMPLOYEE';
 
     const user = await prisma.user.create({
@@ -192,11 +232,17 @@ router.post('/register', async (req, res, next) => {
         firstName: true,
         lastName: true,
         role: true,
-        phone: true
+        phone: true,
+        joinDate: true
       }
     });
 
-    logger.info(`New user registered: ${user.email} (${role})`);
+    logger.info('New user registered', { 
+      userId: user.id,
+      email: user.email,
+      role,
+      registeredBy: userCount > 0 ? (req as AuthRequest).user?.id : 'system'
+    });
 
     res.status(201).json({
       success: true,
@@ -220,12 +266,21 @@ router.post('/refresh', async (req, res, next) => {
       });
     }
 
-    const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET!) as any;
+    let decoded: any;
+    try {
+      decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET!);
+    } catch (err) {
+      logger.warn('Invalid refresh token attempt', { ip: req.ip });
+      return res.status(403).json({
+        success: false,
+        message: 'אסימון רענון לא תקין'
+      });
+    }
 
     // Check if user exists and is active
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
-      select: { id: true, isActive: true }
+      select: { id: true, isActive: true, email: true }
     });
 
     if (!user || !user.isActive) {
@@ -238,15 +293,14 @@ router.post('/refresh', async (req, res, next) => {
     // Generate new tokens
     const tokens = generateTokens(user.id);
 
+    logger.info('Tokens refreshed', { userId: user.id, email: user.email });
+
     res.json({
       success: true,
       data: tokens
     });
   } catch (error) {
-    return res.status(403).json({
-      success: false,
-      message: 'אסימון רענון לא תקין'
-    });
+    next(error);
   }
 });
 
@@ -263,11 +317,20 @@ router.get('/profile', authenticateToken, async (req: AuthRequest, res, next) =>
         phone: true,
         role: true,
         joinDate: true,
+        lastLogin: true,
         emailNotifications: true,
         timerAlerts: true,
-        language: true
+        language: true,
+        isActive: true
       }
     });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'משתמש לא נמצא'
+      });
+    }
 
     res.json({
       success: true,
@@ -314,6 +377,8 @@ router.put('/profile', authenticateToken, async (req: AuthRequest, res, next) =>
       }
     });
 
+    logger.info('Profile updated', { userId: user.id, email: user.email });
+
     res.json({
       success: true,
       message: 'פרופיל עודכן בהצלחה',
@@ -337,15 +402,35 @@ router.put('/change-password', authenticateToken, async (req: AuthRequest, res, 
 
     const { currentPassword, newPassword } = req.body;
 
+    // Check if same as current password
+    if (currentPassword === newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'הסיסמה החדשה חייבת להיות שונה מהסיסמה הנוכחית'
+      });
+    }
+
     // Get current user with password
     const user = await prisma.user.findUnique({
       where: { id: req.user!.id },
-      select: { id: true, password: true }
+      select: { id: true, password: true, email: true }
     });
 
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'משתמש לא נמצא'
+      });
+    }
+
     // Verify current password
-    const isValidPassword = await bcrypt.compare(currentPassword, user!.password);
+    const isValidPassword = await bcrypt.compare(currentPassword, user.password);
     if (!isValidPassword) {
+      logger.warn('Failed password change attempt - wrong current password', {
+        userId: user.id,
+        email: user.email,
+        ip: req.ip
+      });
       return res.status(400).json({
         success: false,
         message: 'סיסמה נוכחית שגויה'
@@ -361,7 +446,7 @@ router.put('/change-password', authenticateToken, async (req: AuthRequest, res, 
       data: { password: hashedPassword }
     });
 
-    logger.info(`Password changed for user: ${req.user!.email}`);
+    logger.info('Password changed successfully', { userId: user.id, email: user.email });
 
     res.json({
       success: true,
@@ -372,10 +457,14 @@ router.put('/change-password', authenticateToken, async (req: AuthRequest, res, 
   }
 });
 
-// Logout (client-side token removal, but we can log it)
+// Logout (mainly for logging purposes)
 router.post('/logout', authenticateToken, async (req: AuthRequest, res, next) => {
   try {
-    logger.info(`User logged out: ${req.user!.email}`);
+    logger.info('User logged out', { 
+      userId: req.user!.id, 
+      email: req.user!.email,
+      ip: req.ip 
+    });
 
     res.json({
       success: true,
@@ -384,6 +473,17 @@ router.post('/logout', authenticateToken, async (req: AuthRequest, res, next) =>
   } catch (error) {
     next(error);
   }
+});
+
+// Verify token (for client-side validation)
+router.get('/verify', authenticateToken, async (req: AuthRequest, res, next) => {
+  res.json({
+    success: true,
+    data: {
+      valid: true,
+      user: req.user
+    }
+  });
 });
 
 export default router;

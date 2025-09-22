@@ -1,0 +1,167 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: timetask-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-timetask}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-timetask_password}
+      POSTGRES_DB: ${DB_NAME:-timetask}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=he_IL.UTF-8"
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./server/prisma/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - timetask-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-timetask}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for caching and sessions
+  redis:
+    image: redis:7-alpine
+    container_name: timetask-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - timetask-network
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_password}
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Application Server
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: timetask-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      DATABASE_URL: postgresql://${DB_USER:-timetask}:${DB_PASSWORD:-timetask_password}@postgres:5432/${DB_NAME:-timetask}?schema=public
+      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_password}@redis:6379
+      JWT_SECRET: ${JWT_SECRET}
+      REFRESH_TOKEN_SECRET: ${REFRESH_TOKEN_SECRET}
+      PORT: 3000
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    volumes:
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+      - ./server/.env:/app/server/.env:ro
+    networks:
+      - timetask-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Nginx Web Server
+  nginx:
+    image: nginx:alpine
+    container_name: timetask-nginx
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "${NGINX_PORT:-80}:80"
+      - "${NGINX_SSL_PORT:-443}:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/sites-enabled:/etc/nginx/sites-enabled:ro
+      - ./client/dist:/usr/share/nginx/html:ro
+      - ./uploads:/usr/share/nginx/uploads:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - nginx_cache:/var/cache/nginx
+    networks:
+      - timetask-network
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Adminer for database management (development only)
+  adminer:
+    image: adminer:latest
+    container_name: timetask-adminer
+    restart: unless-stopped
+    profiles: ["dev"]
+    depends_on:
+      - postgres
+    ports:
+      - "${ADMINER_PORT:-8080}:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+      ADMINER_DESIGN: pepa-linha
+    networks:
+      - timetask-network
+
+  # Mailhog for email testing (development only)
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: timetask-mailhog
+    restart: unless-stopped
+    profiles: ["dev"]
+    ports:
+      - "${MAILHOG_SMTP_PORT:-1025}:1025"
+      - "${MAILHOG_WEB_PORT:-8025}:8025"
+    networks:
+      - timetask-network
+
+  # Backup service
+  backup:
+    image: postgres:15-alpine
+    container_name: timetask-backup
+    profiles: ["backup"]
+    depends_on:
+      - postgres
+    environment:
+      PGHOST: postgres
+      PGDATABASE: ${DB_NAME:-timetask}
+      PGUSER: ${DB_USER:-timetask}
+      PGPASSWORD: ${DB_PASSWORD:-timetask_password}
+    volumes:
+      - ./backups:/backups
+      - ./scripts/backup.sh:/backup.sh:ro
+    command: /backup.sh
+    networks:
+      - timetask-network
+
+networks:
+  timetask-network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  nginx_cache:
+    driver: local

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { io, Socket } from 'socket.io-client'
 import { useAuth } from './AuthContext'
 import toast from 'react-hot-toast'
@@ -8,6 +8,7 @@ interface SocketContextType {
   connected: boolean
   joinProject: (projectId: string) => void
   leaveProject: (projectId: string) => void
+  reconnect: () => void
 }
 
 const SocketContext = createContext<SocketContextType | undefined>(undefined)
@@ -29,78 +30,141 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
   const [connected, setConnected] = useState(false)
   const { user } = useAuth()
 
-  useEffect(() => {
-    if (user) {
-      const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000'
+  const connectSocket = useCallback(() => {
+    if (!user) return null
 
-      const newSocket = io(SOCKET_URL, {
-        auth: {
-          userId: user.id,
-        },
-      })
+    const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000'
+    const token = localStorage.getItem('accessToken')
 
-      newSocket.on('connect', () => {
-        setConnected(true)
-        newSocket.emit('join', user.id)
-        console.log('Connected to server')
-      })
-
-      newSocket.on('disconnect', () => {
-        setConnected(false)
-        console.log('Disconnected from server')
-      })
-
-      // Listen for real-time updates
-      newSocket.on('timer_started', (data) => {
-        toast.success(`טיימר הופעל עבור: ${data.taskTitle}`)
-      })
-
-      newSocket.on('timer_stopped', (data) => {
-        toast.success(`טיימר נעצר עבור: ${data.taskTitle}`)
-      })
-
-      newSocket.on('task_updated', (data) => {
-        toast.info(`משימה עודכנה: ${data.taskTitle}`)
-      })
-
-      newSocket.on('comment_added', (data) => {
-        toast.info(`תגובה חדשה נוספה`)
-      })
-
-      newSocket.on('new_notification', (notification) => {
-        toast(notification.message, {
-          icon: '🔔',
-          duration: 5000,
-        })
-      })
-
-      setSocket(newSocket)
-
-      return () => {
-        newSocket.disconnect()
-        setSocket(null)
-        setConnected(false)
-      }
+    if (!token) {
+      console.error('No authentication token found')
+      return null
     }
+
+    const newSocket = io(SOCKET_URL, {
+      auth: {
+        token: token,
+        userId: user.id,
+      },
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 20000,
+    })
+
+    newSocket.on('connect', () => {
+      setConnected(true)
+      newSocket.emit('join', user.id)
+      console.log('Connected to server')
+    })
+
+    newSocket.on('disconnect', (reason) => {
+      setConnected(false)
+      console.log('Disconnected from server:', reason)
+      
+      if (reason === 'io server disconnect') {
+        // Server disconnected, attempt to reconnect
+        setTimeout(() => {
+          newSocket.connect()
+        }, 1000)
+      }
+    })
+
+    newSocket.on('connect_error', (error) => {
+      console.error('Connection error:', error.message)
+      if (error.message === 'Authentication error') {
+        toast.error('שגיאת אימות. אנא התחבר מחדש.')
+        // Optionally logout the user
+        window.location.href = '/login'
+      }
+    })
+
+    // Listen for real-time updates
+    newSocket.on('timer_started', (data) => {
+      if (data.userId !== user.id) {
+        toast.success(`טיימר הופעל עבור: ${data.taskTitle}`, {
+          icon: '⏱️',
+        })
+      }
+    })
+
+    newSocket.on('timer_stopped', (data) => {
+      if (data.userId !== user.id) {
+        toast.success(`טיימר נעצר עבור: ${data.taskTitle}`, {
+          icon: '⏹️',
+        })
+      }
+    })
+
+    newSocket.on('task_updated', (data) => {
+      toast.info(`משימה עודכנה: ${data.taskTitle}`, {
+        icon: '📝',
+      })
+    })
+
+    newSocket.on('comment_added', (data) => {
+      if (data.authorId !== user.id) {
+        toast.info(`תגובה חדשה ב: ${data.taskTitle || 'משימה'}`, {
+          icon: '💬',
+        })
+      }
+    })
+
+    newSocket.on('new_notification', (notification) => {
+      toast(notification.message, {
+        icon: '🔔',
+        duration: 5000,
+      })
+    })
+
+    return newSocket
   }, [user])
 
-  const joinProject = (projectId: string) => {
-    if (socket) {
+  useEffect(() => {
+    if (user) {
+      const newSocket = connectSocket()
+      if (newSocket) {
+        setSocket(newSocket)
+        
+        return () => {
+          newSocket.disconnect()
+          setSocket(null)
+          setConnected(false)
+        }
+      }
+    }
+  }, [user, connectSocket])
+
+  const joinProject = useCallback((projectId: string) => {
+    if (socket && connected) {
       socket.emit('join_project', projectId)
     }
-  }
+  }, [socket, connected])
 
-  const leaveProject = (projectId: string) => {
-    if (socket) {
+  const leaveProject = useCallback((projectId: string) => {
+    if (socket && connected) {
       socket.emit('leave_project', projectId)
     }
-  }
+  }, [socket, connected])
+
+  const reconnect = useCallback(() => {
+    if (socket && !connected) {
+      socket.connect()
+    } else if (!socket && user) {
+      const newSocket = connectSocket()
+      if (newSocket) {
+        setSocket(newSocket)
+      }
+    }
+  }, [socket, connected, user, connectSocket])
 
   const value = {
     socket,
     connected,
     joinProject,
     leaveProject,
+    reconnect,
   }
 
   return <SocketContext.Provider value={value}>{children}</SocketContext.Provider>
