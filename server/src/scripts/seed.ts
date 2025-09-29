@@ -1,1 +1,198 @@
-import { PrismaClient } from '@prisma/client'\nimport bcrypt from 'bcryptjs'\n\nconst prisma = new PrismaClient()\n\nasync function main() {\n  console.log('🌱 Starting database seed...')\n\n  // Create system admin user\n  const hashedPassword = await bcrypt.hash('admin123', 12)\n  \n  const admin = await prisma.user.upsert({\n    where: { email: 'admin@timetask.com' },\n    update: {},\n    create: {\n      email: 'admin@timetask.com',\n      password: hashedPassword,\n      firstName: 'מנהל',\n      lastName: 'מערכת',\n      role: 'ADMIN'\n    }\n  })\n\n  // Create sample employee\n  const employeePassword = await bcrypt.hash('employee123', 12)\n  \n  const employee = await prisma.user.upsert({\n    where: { email: 'employee@timetask.com' },\n    update: {},\n    create: {\n      email: 'employee@timetask.com',\n      password: employeePassword,\n      firstName: 'עובד',\n      lastName: 'דוגמה',\n      role: 'EMPLOYEE'\n    }\n  })\n\n  // Create sample client user\n  const clientPassword = await bcrypt.hash('client123', 12)\n  \n  const clientUser = await prisma.user.upsert({\n    where: { email: 'client@timetask.com' },\n    update: {},\n    create: {\n      email: 'client@timetask.com',\n      password: clientPassword,\n      firstName: 'לקוח',\n      lastName: 'דוגמה',\n      role: 'CLIENT'\n    }\n  })\n\n  // Create sample client\n  const client = await prisma.client.upsert({\n    where: { id: 'sample-client-1' },\n    update: {},\n    create: {\n      id: 'sample-client-1',\n      name: 'חברת דוגמה בע\"מ',\n      contactPerson: 'יוסי כהן',\n      email: 'yossi@example.co.il',\n      phone: '03-1234567',\n      address: 'רחוב הרצל 123, תל אביב',\n      notes: 'לקוח חשוב - פיתוח אתר תדמיתי',\n      createdById: admin.id\n    }\n  })\n\n  // Create sample project\n  const project = await prisma.project.upsert({\n    where: { id: 'sample-project-1' },\n    update: {},\n    create: {\n      id: 'sample-project-1',\n      name: 'אתר תדמיתי חדש',\n      description: 'פיתוח אתר תדמיתי מודרני עם ממשק ניהול תוכן',\n      clientId: client.id,\n      createdById: admin.id,\n      startDate: new Date(),\n      targetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now\n      hoursBudget: 120,\n      status: 'ACTIVE'\n    }\n  })\n\n  // Create sample tasks\n  const task1 = await prisma.task.create({\n    data: {\n      title: 'עיצוב ממשק משתמש',\n      description: 'יצירת עיצובים למסכי האתר הראשיים',\n      projectId: project.id,\n      priority: 'IMPORTANT',\n      status: 'IN_PROGRESS',\n      timeEstimate: 20,\n      deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now\n      assignedUsers: {\n        create: [\n          { userId: employee.id }\n        ]\n      }\n    }\n  })\n\n  const task2 = await prisma.task.create({\n    data: {\n      title: 'פיתוח דף בית',\n      description: 'קידוד הדף הראשי של האתר',\n      projectId: project.id,\n      priority: 'URGENT_IMPORTANT',\n      status: 'NEW',\n      timeEstimate: 15,\n      deadline: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000), // 10 days from now\n      assignedUsers: {\n        create: [\n          { userId: employee.id },\n          { clientId: clientUser.id }\n        ]\n      }\n    }\n  })\n\n  // Create sample time record\n  await prisma.timeRecord.create({\n    data: {\n      taskId: task1.id,\n      employeeId: employee.id,\n      startTime: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago\n      endTime: new Date(Date.now() - 1 * 60 * 60 * 1000), // 1 hour ago\n      duration: 60, // 60 minutes\n      description: 'עבודה על עיצוב הדף הראשי',\n      status: 'COMPLETED'\n    }\n  })\n\n  // Create sample comment\n  await prisma.comment.create({\n    data: {\n      content: 'העיצוב נראה מעולה! יש כמה הערות קטנות שנדבר עליהן מחר.',\n      taskId: task1.id,\n      authorId: clientUser.id\n    }\n  })\n\n  // Create sample system settings\n  await prisma.systemSettings.upsert({\n    where: { key: 'timer_alert_minutes' },\n    update: {},\n    create: {\n      key: 'timer_alert_minutes',\n      value: '30'\n    }\n  })\n\n  await prisma.systemSettings.upsert({\n    where: { key: 'timer_email_alert_hours' },\n    update: {},\n    create: {\n      key: 'timer_email_alert_hours',\n      value: '2'\n    }\n  })\n\n  console.log('✅ Database seed completed!')\n  console.log('')\n  console.log('📋 Sample users created:')\n  console.log('🔹 Admin: admin@timetask.com / admin123')\n  console.log('🔹 Employee: employee@timetask.com / employee123')\n  console.log('🔹 Client: client@timetask.com / client123')\n  console.log('')\n  console.log('🏢 Sample data:')\n  console.log('🔸 1 Client company')\n  console.log('🔸 1 Active project')\n  console.log('🔸 2 Tasks with assignments')\n  console.log('🔸 1 Completed time record')\n  console.log('🔸 1 Comment')\n}\n\nmain()\n  .then(async () => {\n    await prisma.$disconnect()\n  })\n  .catch(async (e) => {\n    console.error('❌ Seed failed:', e)\n    await prisma.$disconnect()\n    process.exit(1)\n  })"
+import { PrismaClient } from '@prisma/client'
+import bcrypt from 'bcryptjs'
+
+const prisma = new PrismaClient()
+
+async function main() {
+      console.log('🌱 Starting database seed...')
+    
+ // Create system admin user
+  const hashedPassword = await bcrypt.hash('admin123', 12)
+  
+  const admin = await prisma.user.upsert({
+    where: { email: 'admin@timetask.co.il' },
+    update: {},
+    create: {
+      email: 'admin@timetask.co.il',
+      password: hashedPassword,
+      firstName: 'מנהל',
+      lastName: 'מערכת',
+      role: 'ADMIN'
+    }
+  })
+
+  // Create sample employee
+  const employeePassword = await bcrypt.hash('employee123', 12)
+  
+  const employee = await prisma.user.upsert({
+    where: { email: 'employee@timetask.co.il' },
+    update: {},
+    create: {
+      email: 'employee@timetask.co.il',
+      password: employeePassword,
+      firstName: 'עובד',
+      lastName: 'דוגמה',
+      role: 'EMPLOYEE'
+    }
+  })
+
+  // Create sample client user
+  const clientPassword = await bcrypt.hash('client123', 12)
+  
+  const clientUser = await prisma.user.upsert({
+    where: { email: 'client@timetask.co.il' },
+    update: {},
+    create: {
+      email: 'client@timetask.co.il',
+      password: clientPassword,
+      firstName: 'לקוח',
+      lastName: 'דוגמה',
+      role: 'CLIENT'
+    }
+  })
+
+  // Create sample client
+  const client = await prisma.client.upsert({
+    where: { id: 'sample-client-1' },
+    update: {},
+    create: {
+      id: 'sample-client-1',
+      name: 'חברת דוגמה בע\"מ',
+      contactPerson: 'יוסי כהן',
+      email: 'yossi@example.co.il',
+      phone: '03-1234567',
+      address: 'רחוב הרצל 123, תל אביב',
+      notes: 'לקוח חשוב - פיתוח אתר תדמיתי',
+      createdById: admin.id
+    }
+  })
+
+  // Create sample project
+  const project = await prisma.project.upsert({
+    where: { id: 'sample-project-1' },
+    update: {},
+    create: {
+      id: 'sample-project-1',
+      name: 'אתר תדמיתי חדש',
+      description: 'פיתוח אתר תדמיתי מודרני עם ממשק ניהול תוכן',
+      clientId: client.id,
+      createdById: admin.id,
+      startDate: new Date(),
+      targetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+      hoursBudget: 120,
+      status: 'ACTIVE'
+    }
+  })
+
+  // Create sample tasks
+  const task1 = await prisma.task.create({
+    data: {
+      title: 'עיצוב ממשק משתמש',
+      description: 'יצירת עיצובים למסכי האתר הראשיים',
+      projectId: project.id,
+      priority: 'IMPORTANT',
+      status: 'IN_PROGRESS',
+      timeEstimate: 20,
+      deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+      assignedUsers: {
+        create: [
+          {
+            user: { connect: { id: employee.id } },
+            assignedBy: admin.id // Pass the admin ID directly as a string
+          }
+        ]
+      }
+    }
+  })
+
+  const task2 = await prisma.task.create({
+    data: {
+      title: 'פיתוח דף בית',
+      description: 'קידוד הדף הראשי של האתר',
+      projectId: project.id,
+      priority: 'URGENT_IMPORTANT',
+      status: 'NEW',
+      timeEstimate: 15,
+      deadline: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000), // 10 days from now
+      assignedUsers: {
+        create: [
+          {
+            user: { connect: { id: employee.id } },
+            assignedBy: admin.id // Pass the admin ID directly as a string
+          },
+          {
+            user: { connect: { id: clientUser.id } },
+            assignedBy: admin.id // Pass the admin ID directly as a string
+          }
+        ]
+      }
+    }
+  })
+
+
+
+  // Create sample time record
+  await prisma.timeRecord.create({
+    data: {
+      taskId: task1.id,
+      employeeId: employee.id,
+      startTime: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
+      endTime: new Date(Date.now() - 1 * 60 * 60 * 1000), // 1 hour ago
+      duration: 60, // 60 minutes
+      description: 'עבודה על עיצוב הדף הראשי',
+      status: 'COMPLETED'
+    }
+  })
+
+  // Create sample comment
+  await prisma.comment.create({
+    data: {
+      content: 'העיצוב נראה מעולה! יש כמה הערות קטנות שנדבר עליהן מחר.',
+      taskId: task1.id,
+      authorId: clientUser.id
+    }
+  })
+
+  // Create sample system settings
+  await prisma.systemSettings.upsert({
+    where: { key: 'timer_alert_minutes' },
+    update: {},
+    create: {
+      key: 'timer_alert_minutes',
+      value: '30'
+    }
+  })
+
+  await prisma.systemSettings.upsert({
+    where: { key: 'timer_email_alert_hours' },
+    update: {},
+    create: {
+      key: 'timer_email_alert_hours',
+      value: '2'
+    }
+  })
+
+  console.log('✅ Database seed completed!')
+  console.log('')
+  console.log('📋 Sample users created:')
+  console.log('🔹 Admin: admin@timetask.com / admin123')
+  console.log('🔹 Employee: employee@timetask.com / employee123')
+  console.log('🔹 Client: client@timetask.com / client123')
+  console.log('')
+  console.log('🏢 Sample data:')
+  console.log('🔸 1 Client company')
+  console.log('🔸 1 Active project')
+  console.log('🔸 2 Tasks with assignments')
+  console.log('🔸 1 Completed time record')
+  console.log('🔸 1 Comment')
+}
+// 
+main()
+  .then(async () => {
+    await prisma.$disconnect()
+  })
+  .catch(async (e) => {
+    console.error('❌ Seed failed:', e)
+    await prisma.$disconnect()
+    process.exit(1)
+  });
