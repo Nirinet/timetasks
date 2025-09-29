@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
-import { mockDeep, mockReset, DeepMockProxy } from 'jest-mock-extended';
+import { DeepMockProxy, mockDeep, mockReset } from 'jest-mock-extended';
+import jwt from 'jsonwebtoken';
 
 // Mock Prisma Client
 jest.mock('../index', () => ({
@@ -110,10 +111,9 @@ export const createMockTimeRecord = (overrides = {}) => ({
 
 // JWT token helper for testing authenticated routes
 export const generateTestToken = (userId = 'user-123', role = 'EMPLOYEE') => {
-  const jwt = require('jsonwebtoken');
   return jwt.sign(
     { userId, role },
-    process.env.JWT_SECRET,
+    process.env.JWT_SECRET!,
     { expiresIn: '1h' }
   );
 };

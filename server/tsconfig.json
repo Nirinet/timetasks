@@ -24,18 +24,33 @@
       "@/types/*": ["./types/*"],
       "@/utils/*": ["./utils/*"],
       "@/middleware/*": ["./middleware/*"],
-      "@/controllers/*": ["./controllers/*"],
       "@/routes/*": ["./routes/*"],
-      "@/services/*": ["./services/*"]
-    }
+      "@/scripts/*": ["./scripts/*"]
+    },
+    "types": ["node", "jest"],
+    "typeRoots": ["./node_modules/@types", "./src/types"],
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true,
+    "strictPropertyInitialization": true,
+    "noImplicitThis": true,
+    "alwaysStrict": true
   },
   "include": [
-    "src/**/*",
-    "types/**/*"
+    "src/**/*"
   ],
   "exclude": [
     "node_modules",
     "dist",
-    "**/*.test.ts"
-  ]
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    "src/tests/**/*",
+    "src/__tests__/**/*"
+  ],
+  "ts-node": {
+    "require": ["tsconfig-paths/register"],
+    "transpileOnly": true,
+    "files": true
+  }
 }
