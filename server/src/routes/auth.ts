@@ -57,14 +57,14 @@ const changePasswordSchema = Joi.object({
 const generateTokens = (userId: string) => {
   const accessToken = jwt.sign(
     { userId },
-    process.env.JWT_SECRET!,
-    { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+    process.env.JWT_SECRET as string,
+    { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as any
   );
 
   const refreshToken = jwt.sign(
     { userId },
-    process.env.REFRESH_TOKEN_SECRET!,
-    { expiresIn: process.env.REFRESH_TOKEN_EXPIRES_IN || '30d' }
+    process.env.REFRESH_TOKEN_SECRET as string,
+    { expiresIn: process.env.REFRESH_TOKEN_EXPIRES_IN || '30d' } as any
   );
 
   return { accessToken, refreshToken };
@@ -128,7 +128,8 @@ router.post('/login', loginRateLimiter, async (req, res, next) => {
     }
 
     // Reset login attempts on successful login
-    resetLoginAttempts(req.ip, email);
+    const clientIp = req.ip || 'unknown';
+    resetLoginAttempts(clientIp, email);
 
     // Generate tokens
     const { accessToken, refreshToken } = generateTokens(user.id);

@@ -1,21 +1,32 @@
 # Dependencies
 node_modules/
 */node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
 
 # Production builds
 dist/
 build/
 */dist/
 */build/
+client/dist/
+server/dist/
 
 # Environment files
 .env
+.env.*
 .env.local
+.env.development
 .env.development.local
+.env.test
 .env.test.local
+.env.production
 .env.production.local
 server/.env
+server/.env.*
 client/.env
+client/.env.*
 
 # Logs
 logs/
@@ -23,6 +34,7 @@ logs/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
 lerna-debug.log*
 server/logs/
 
@@ -32,23 +44,29 @@ pids/
 *.seed
 *.pid.lock
 
-# Coverage directory used by tools like istanbul
+# Testing
 coverage/
 *.lcov
-
-# nyc test coverage
 .nyc_output/
+test-results/
+jest-results/
+*.coverage
+*.coveragexml
 
 # Dependency directories
 jspm_packages/
 
-# Optional npm cache directory
+# Cache directories
 .npm
-
-# Optional eslint cache
 .eslintcache
+.stylelintcache
+.prettiercache
+*.cache
+.cache/
+.parcel-cache/
+.turbo
 
-# Microbundle cache
+# Build tools cache
 .rpt2_cache/
 .rts2_cache_cjs/
 .rts2_cache_es/
@@ -60,39 +78,45 @@ jspm_packages/
 # Output of 'npm pack'
 *.tgz
 
-# Yarn Integrity file
+# Yarn
 .yarn-integrity
+.yarn/
+.pnp.*
 
-# parcel-bundler cache (https://parceljs.org/)
-.cache
-.parcel-cache
-
-# Next.js build output
-.next
-
-# Nuxt.js build / generate output
+# Next.js/React specific
+.next/
+out/
 .nuxt
 
-# Gatsby files
-.cache/
-public
+# Vite
+client/.vite/
+*.local
 
-# Storybook build outputs
+# Storybook
 .out
 .storybook-out
+storybook-static/
 
-# Temporary folders
+# Temporary files and folders
 tmp/
 temp/
+*.tmp
+*.temp
+.tmp/
+.temp/
 
 # Editor directories and files
 .vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
 .idea/
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+*.sublime-workspace
+*.sublime-project
 
 # OS generated files
 .DS_Store
@@ -102,17 +126,73 @@ temp/
 .Trashes
 ehthumbs.db
 Thumbs.db
+desktop.ini
 
-# Database
+# Database files
 *.db
 *.sqlite
+*.sqlite3
+*.db-journal
+*.db-shm
+*.db-wal
+postgres-data/
+docker/postgres/
 
-# Uploads
+# Uploads and user generated content
 uploads/
 server/uploads/
+public/uploads/
+static/uploads/
+media/
 
 # Prisma
 server/prisma/migrations/
+server/prisma/*.db
+server/prisma/*.db-journal
+prisma/client/
 
 # TypeScript
 *.tsbuildinfo
+tsconfig.tsbuildinfo
+
+# Docker
+docker-compose.override.yml
+.dockerignore
+
+# Backup files
+*.backup
+*.bak
+*.old
+backup/
+
+# Security and secrets
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+*.cer
+secrets/
+certificates/
+
+# Documentation build
+docs/_build/
+docs/.vuepress/dist/
+
+# Miscellaneous
+*.swp
+*.swo
+*~
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+
+# Debug files
+debug.log
+debug/
+
+# Temporary fix scripts (project specific)
+fix-*.js
+fix-*.ts

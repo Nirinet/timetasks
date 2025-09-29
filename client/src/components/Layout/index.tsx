@@ -71,7 +71,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     <Box sx={{ display: 'flex' }}>
       {/* App Bar */}
       <AppBar
-        position=\"fixed\"
+        position="fixed"
         sx={{
           width: { lg: `calc(100% - ${DRAWER_WIDTH}px)` },
           mr: { lg: `${DRAWER_WIDTH}px` },
@@ -84,40 +84,40 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       >
         <Toolbar>
           <IconButton
-            color=\"inherit\"
-            aria-label=\"פתח תפריט\"
-            edge=\"start\"
+            color="inherit"
+            aria-label="פתח תפריט"
+            edge="start"
             onClick={handleDrawerToggle}
             sx={{ mr: 2, display: { lg: 'none' } }}
           >
             <MenuIcon />
           </IconButton>
 
-          <Typography variant=\"h6\" noWrap component=\"div\" sx={{ flexGrow: 1 }}>
+          <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
             TimeTask
           </Typography>
 
           {/* Notifications */}
           <IconButton
-            size=\"large\"
-            aria-label=\"הודעות\"
-            color=\"inherit\"
+            size="large"
+            aria-label="הודעות"
+            color="inherit"
             onClick={handleNotificationOpen}
           >
-            <Badge badgeContent={0} color=\"error\">
+            <Badge badgeContent={0} color="error">
               <NotificationsIcon />
             </Badge>
           </IconButton>
 
           {/* Profile Menu */}
           <IconButton
-            size=\"large\"
-            edge=\"end\"
-            aria-label=\"פרופיל משתמש\"
+            size="large"
+            edge="end"
+            aria-label="פרופיל משתמש"
             aria-controls={isMenuOpen ? 'profile-menu' : undefined}
-            aria-haspopup=\"true\"
+            aria-haspopup="true"
             onClick={handleProfileMenuOpen}
-            color=\"inherit\"
+            color="inherit"
           >
             <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main' }}>
               {user?.firstName.charAt(0)}
@@ -128,9 +128,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       {/* Navigation Drawer */}
       <Box
-        component=\"nav\"
+        component="nav"
         sx={{ width: { lg: DRAWER_WIDTH }, flexShrink: { lg: 0 } }}
-        aria-label=\"תפריט ניווט\"
+        aria-label="תפריט ניווט"
       >
         <Drawer
           variant={isMobile ? 'temporary' : 'permanent'}
@@ -155,7 +155,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       {/* Main content */}
       <Box
-        component=\"main\"
+        component="main"
         sx={{
           flexGrow: 1,
           p: 3,
@@ -170,7 +170,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       {/* Profile Menu */}
       <Menu
-        id=\"profile-menu\"
+        id="profile-menu"
         anchorEl={anchorEl}
         open={isMenuOpen}
         onClose={handleProfileMenuClose}

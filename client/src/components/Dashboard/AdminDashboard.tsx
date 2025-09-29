@@ -1,1 +1,317 @@
-import React, { useEffect, useState } from 'react'\nimport {\n  Grid,\n  Card,\n  CardContent,\n  Typography,\n  Box,\n  Chip,\n  Table,\n  TableBody,\n  TableCell,\n  TableContainer,\n  TableHead,\n  TableRow,\n  Paper,\n  LinearProgress,\n} from '@mui/material'\nimport {\n  People as PeopleIcon,\n  Assignment as TasksIcon,\n  FolderOpen as ProjectsIcon,\n  TrendingUp as TrendingUpIcon,\n  Schedule as ScheduleIcon,\n  Warning as WarningIcon,\n} from '@mui/icons-material'\n\nimport api from '@/services/api'\nimport { Task, Project, User } from '@/types'\n\ninterface DashboardStats {\n  totalUsers: number\n  totalProjects: number\n  totalTasks: number\n  activeTasks: number\n  overdueTasks: number\n  totalHoursThisMonth: number\n}\n\nconst AdminDashboard: React.FC = () => {\n  const [stats, setStats] = useState<DashboardStats>({\n    totalUsers: 0,\n    totalProjects: 0,\n    totalTasks: 0,\n    activeTasks: 0,\n    overdueTasks: 0,\n    totalHoursThisMonth: 0,\n  })\n  const [recentTasks, setRecentTasks] = useState<Task[]>([])\n  const [recentProjects, setRecentProjects] = useState<Project[]>([])\n  const [activeEmployees, setActiveEmployees] = useState<User[]>([])\n  const [loading, setLoading] = useState(true)\n\n  useEffect(() => {\n    fetchDashboardData()\n  }, [])\n\n  const fetchDashboardData = async () => {\n    try {\n      const [usersRes, projectsRes, tasksRes, hoursRes] = await Promise.all([\n        api.get('/users'),\n        api.get('/projects'),\n        api.get('/tasks'),\n        api.get('/reports/hours'),\n      ])\n\n      const users = usersRes.data.data.users\n      const projects = projectsRes.data.data.projects\n      const tasks = tasksRes.data.data.tasks\n      const hoursData = hoursRes.data.data\n\n      const now = new Date()\n      const activeTasks = tasks.filter((task: Task) => \n        task.status === 'IN_PROGRESS' || task.status === 'NEW'\n      )\n      const overdueTasks = tasks.filter((task: Task) => \n        task.deadline && new Date(task.deadline) < now && task.status !== 'COMPLETED'\n      )\n\n      setStats({\n        totalUsers: users.length,\n        totalProjects: projects.length,\n        totalTasks: tasks.length,\n        activeTasks: activeTasks.length,\n        overdueTasks: overdueTasks.length,\n        totalHoursThisMonth: hoursData.summary?.totalHours || 0,\n      })\n\n      setRecentTasks(tasks.slice(0, 5))\n      setRecentProjects(projects.slice(0, 5))\n      setActiveEmployees(users.filter((u: User) => u.role === 'EMPLOYEE' && u.isActive))\n    } catch (error) {\n      console.error('Error fetching dashboard data:', error)\n    } finally {\n      setLoading(false)\n    }\n  }\n\n  const StatCard = ({ title, value, icon, color = 'primary' }: {\n    title: string\n    value: number | string\n    icon: React.ReactElement\n    color?: string\n  }) => (\n    <Card>\n      <CardContent>\n        <Box display=\"flex\" alignItems=\"center\" justifyContent=\"space-between\">\n          <Box>\n            <Typography color=\"text.secondary\" gutterBottom variant=\"body2\">\n              {title}\n            </Typography>\n            <Typography variant=\"h4\" component=\"div\">\n              {value}\n            </Typography>\n          </Box>\n          <Box\n            sx={{\n              p: 1,\n              borderRadius: 2,\n              bgcolor: `${color}.light`,\n              color: `${color}.contrastText`,\n            }}\n          >\n            {icon}\n          </Box>\n        </Box>\n      </CardContent>\n    </Card>\n  )\n\n  const getTaskStatusColor = (status: string) => {\n    switch (status) {\n      case 'NEW': return 'default'\n      case 'IN_PROGRESS': return 'primary'\n      case 'WAITING_CLIENT': return 'warning'\n      case 'COMPLETED': return 'success'\n      default: return 'default'\n    }\n  }\n\n  const getProjectStatusColor = (status: string) => {\n    switch (status) {\n      case 'ACTIVE': return 'success'\n      case 'ON_HOLD': return 'warning'\n      case 'COMPLETED': return 'info'\n      default: return 'default'\n    }\n  }\n\n  if (loading) {\n    return (\n      <Box>\n        <LinearProgress sx={{ mb: 2 }} />\n        <Typography>טוען נתוני דשבורד...</Typography>\n      </Box>\n    )\n  }\n\n  return (\n    <Grid container spacing={3}>\n      {/* Stats Cards */}\n      <Grid item xs={12} sm={6} md={2}>\n        <StatCard\n          title=\"סך משתמשים\"\n          value={stats.totalUsers}\n          icon={<PeopleIcon />}\n          color=\"primary\"\n        />\n      </Grid>\n      <Grid item xs={12} sm={6} md={2}>\n        <StatCard\n          title=\"סך פרויקטים\"\n          value={stats.totalProjects}\n          icon={<ProjectsIcon />}\n          color=\"secondary\"\n        />\n      </Grid>\n      <Grid item xs={12} sm={6} md={2}>\n        <StatCard\n          title=\"סך משימות\"\n          value={stats.totalTasks}\n          icon={<TasksIcon />}\n          color=\"info\"\n        />\n      </Grid>\n      <Grid item xs={12} sm={6} md={2}>\n        <StatCard\n          title=\"משימות פעילות\"\n          value={stats.activeTasks}\n          icon={<TrendingUpIcon />}\n          color=\"success\"\n        />\n      </Grid>\n      <Grid item xs={12} sm={6} md={2}>\n        <StatCard\n          title=\"משימות באיחור\"\n          value={stats.overdueTasks}\n          icon={<WarningIcon />}\n          color=\"error\"\n        />\n      </Grid>\n      <Grid item xs={12} sm={6} md={2}>\n        <StatCard\n          title=\"שעות החודש\"\n          value={Math.round(stats.totalHoursThisMonth)}\n          icon={<ScheduleIcon />}\n          color=\"warning\"\n        />\n      </Grid>\n\n      {/* Recent Tasks */}\n      <Grid item xs={12} md={6}>\n        <Card>\n          <CardContent>\n            <Typography variant=\"h6\" gutterBottom>\n              משימות אחרונות\n            </Typography>\n            <TableContainer>\n              <Table size=\"small\">\n                <TableHead>\n                  <TableRow>\n                    <TableCell>כותרת</TableCell>\n                    <TableCell>פרויקט</TableCell>\n                    <TableCell>סטטוס</TableCell>\n                    <TableCell>תאריך יצירה</TableCell>\n                  </TableRow>\n                </TableHead>\n                <TableBody>\n                  {recentTasks.map((task) => (\n                    <TableRow key={task.id}>\n                      <TableCell>{task.title}</TableCell>\n                      <TableCell>{task.project.name}</TableCell>\n                      <TableCell>\n                        <Chip\n                          size=\"small\"\n                          label={task.status}\n                          color={getTaskStatusColor(task.status)}\n                        />\n                      </TableCell>\n                      <TableCell>\n                        {new Date(task.creationDate).toLocaleDateString('he-IL')}\n                      </TableCell>\n                    </TableRow>\n                  ))}\n                </TableBody>\n              </Table>\n            </TableContainer>\n          </CardContent>\n        </Card>\n      </Grid>\n\n      {/* Recent Projects */}\n      <Grid item xs={12} md={6}>\n        <Card>\n          <CardContent>\n            <Typography variant=\"h6\" gutterBottom>\n              פרויקטים אחרונים\n            </Typography>\n            <TableContainer>\n              <Table size=\"small\">\n                <TableHead>\n                  <TableRow>\n                    <TableCell>שם</TableCell>\n                    <TableCell>לקוח</TableCell>\n                    <TableCell>סטטוס</TableCell>\n                    <TableCell>תאריך התחלה</TableCell>\n                  </TableRow>\n                </TableHead>\n                <TableBody>\n                  {recentProjects.map((project) => (\n                    <TableRow key={project.id}>\n                      <TableCell>{project.name}</TableCell>\n                      <TableCell>{project.client.name}</TableCell>\n                      <TableCell>\n                        <Chip\n                          size=\"small\"\n                          label={project.status}\n                          color={getProjectStatusColor(project.status)}\n                        />\n                      </TableCell>\n                      <TableCell>\n                        {new Date(project.startDate).toLocaleDateString('he-IL')}\n                      </TableCell>\n                    </TableRow>\n                  ))}\n                </TableBody>\n              </Table>\n            </TableContainer>\n          </CardContent>\n        </Card>\n      </Grid>\n\n      {/* Active Employees */}\n      <Grid item xs={12}>\n        <Card>\n          <CardContent>\n            <Typography variant=\"h6\" gutterBottom>\n              עובדים פעילים ({activeEmployees.length})\n            </Typography>\n            <Grid container spacing={2}>\n              {activeEmployees.map((employee) => (\n                <Grid item key={employee.id}>\n                  <Chip\n                    label={`${employee.firstName} ${employee.lastName}`}\n                    variant=\"outlined\"\n                    color=\"primary\"\n                  />\n                </Grid>\n              ))}\n            </Grid>\n          </CardContent>\n        </Card>\n      </Grid>\n    </Grid>\n  )\n}\n\nexport default AdminDashboard"
+import React, { useEffect, useState } from 'react'
+import {
+  Grid,
+  Card,
+  CardContent,
+  Typography,
+  Box,
+  Chip,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  LinearProgress,
+} from '@mui/material'
+import {
+  People as PeopleIcon,
+  Assignment as TasksIcon,
+  FolderOpen as ProjectsIcon,
+  TrendingUp as TrendingUpIcon,
+  Schedule as ScheduleIcon,
+  Warning as WarningIcon,
+} from '@mui/icons-material'
+
+import api from '@/services/api'
+import { Task, Project, User } from '@/types'
+
+interface DashboardStats {
+  totalUsers: number
+  totalProjects: number
+  totalTasks: number
+  activeTasks: number
+  overdueTasks: number
+  totalHoursThisMonth: number
+}
+
+const AdminDashboard: React.FC = () => {
+  const [stats, setStats] = useState<DashboardStats>({
+    totalUsers: 0,
+    totalProjects: 0,
+    totalTasks: 0,
+    activeTasks: 0,
+    overdueTasks: 0,
+    totalHoursThisMonth: 0,
+  })
+  const [recentTasks, setRecentTasks] = useState<Task[]>([])
+  const [recentProjects, setRecentProjects] = useState<Project[]>([])
+  const [activeEmployees, setActiveEmployees] = useState<User[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetchDashboardData()
+  }, [])
+
+  const fetchDashboardData = async () => {
+    try {
+      const [usersRes, projectsRes, tasksRes, hoursRes] = await Promise.all([
+        api.get('/users'),
+        api.get('/projects'),
+        api.get('/tasks'),
+        api.get('/reports/hours'),
+      ])
+
+      const users = usersRes.data.data.users
+      const projects = projectsRes.data.data.projects
+      const tasks = tasksRes.data.data.tasks
+      const hoursData = hoursRes.data.data
+
+      const now = new Date()
+      const activeTasks = tasks.filter((task: Task) => 
+        task.status === 'IN_PROGRESS' || task.status === 'NEW'
+      )
+      const overdueTasks = tasks.filter((task: Task) => 
+        task.deadline && new Date(task.deadline) < now && task.status !== 'COMPLETED'
+      )
+
+      setStats({
+        totalUsers: users.length,
+        totalProjects: projects.length,
+        totalTasks: tasks.length,
+        activeTasks: activeTasks.length,
+        overdueTasks: overdueTasks.length,
+        totalHoursThisMonth: hoursData.summary?.totalHours || 0,
+      })
+
+      setRecentTasks(tasks.slice(0, 5))
+      setRecentProjects(projects.slice(0, 5))
+      setActiveEmployees(users.filter((u: User) => u.role === 'EMPLOYEE' && u.isActive))
+    } catch (error) {
+
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const StatCard = ({ title, value, icon, color = 'primary' }: {
+    title: string
+    value: number | string
+    icon: React.ReactElement
+    color?: string
+  }) => (
+    <Card>
+      <CardContent>
+        <Box display="flex" alignItems="center" justifyContent="space-between">
+          <Box>
+            <Typography color="text.secondary" gutterBottom variant="body2">
+              {title}
+            </Typography>
+            <Typography variant="h4" component="div">
+              {value}
+            </Typography>
+          </Box>
+          <Box
+            sx={{
+              p: 1,
+              borderRadius: 2,
+              bgcolor: `${color}.light`,
+              color: `${color}.contrastText`,
+            }}
+          >
+            {icon}
+          </Box>
+        </Box>
+      </CardContent>
+    </Card>
+  )
+
+  const getTaskStatusColor = (status: string) => {
+    switch (status) {
+      case 'NEW': return 'default'
+      case 'IN_PROGRESS': return 'primary'
+      case 'WAITING_CLIENT': return 'warning'
+      case 'COMPLETED': return 'success'
+      default: return 'default'
+    }
+  }
+
+  const getProjectStatusColor = (status: string) => {
+    switch (status) {
+      case 'ACTIVE': return 'success'
+      case 'ON_HOLD': return 'warning'
+      case 'COMPLETED': return 'info'
+      default: return 'default'
+    }
+  }
+
+  if (loading) {
+    return (
+      <Box>
+        <LinearProgress sx={{ mb: 2 }} />
+        <Typography>טוען נתוני דשבורד...</Typography>
+      </Box>
+    )
+  }
+
+  return (
+    <Grid container spacing={3}>
+      {/* Stats Cards */}
+      <Grid item xs={12} sm={6} md={2}>
+        <StatCard
+          title="סך משתמשים"
+          value={stats.totalUsers}
+          icon={<PeopleIcon />}
+          color="primary"
+        />
+      </Grid>
+      <Grid item xs={12} sm={6} md={2}>
+        <StatCard
+          title="סך פרויקטים"
+          value={stats.totalProjects}
+          icon={<ProjectsIcon />}
+          color="secondary"
+        />
+      </Grid>
+      <Grid item xs={12} sm={6} md={2}>
+        <StatCard
+          title="סך משימות"
+          value={stats.totalTasks}
+          icon={<TasksIcon />}
+          color="info"
+        />
+      </Grid>
+      <Grid item xs={12} sm={6} md={2}>
+        <StatCard
+          title="משימות פעילות"
+          value={stats.activeTasks}
+          icon={<TrendingUpIcon />}
+          color="success"
+        />
+      </Grid>
+      <Grid item xs={12} sm={6} md={2}>
+        <StatCard
+          title="משימות באיחור"
+          value={stats.overdueTasks}
+          icon={<WarningIcon />}
+          color="error"
+        />
+      </Grid>
+      <Grid item xs={12} sm={6} md={2}>
+        <StatCard
+          title="שעות החודש"
+          value={Math.round(stats.totalHoursThisMonth)}
+          icon={<ScheduleIcon />}
+          color="warning"
+        />
+      </Grid>
+
+      {/* Recent Tasks */}
+      <Grid item xs={12} md={6}>
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              משימות אחרונות
+            </Typography>
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>כותרת</TableCell>
+                    <TableCell>פרויקט</TableCell>
+                    <TableCell>סטטוס</TableCell>
+                    <TableCell>תאריך יצירה</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {recentTasks.map((task) => (
+                    <TableRow key={task.id}>
+                      <TableCell>{task.title}</TableCell>
+                      <TableCell>{task.project.name}</TableCell>
+                      <TableCell>
+                        <Chip
+                          size="small"
+                          label={task.status}
+                          color={getTaskStatusColor(task.status)}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        {new Date(task.creationDate).toLocaleDateString('he-IL')}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </CardContent>
+        </Card>
+      </Grid>
+
+      {/* Recent Projects */}
+      <Grid item xs={12} md={6}>
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              פרויקטים אחרונים
+            </Typography>
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>שם</TableCell>
+                    <TableCell>לקוח</TableCell>
+                    <TableCell>סטטוס</TableCell>
+                    <TableCell>תאריך התחלה</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {recentProjects.map((project) => (
+                    <TableRow key={project.id}>
+                      <TableCell>{project.name}</TableCell>
+                      <TableCell>{project.client.name}</TableCell>
+                      <TableCell>
+                        <Chip
+                          size="small"
+                          label={project.status}
+                          color={getProjectStatusColor(project.status)}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        {new Date(project.startDate).toLocaleDateString('he-IL')}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </CardContent>
+        </Card>
+      </Grid>
+
+      {/* Active Employees */}
+      <Grid item xs={12}>
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              עובדים פעילים ({activeEmployees.length})
+            </Typography>
+            <Grid container spacing={2}>
+              {activeEmployees.map((employee) => (
+                <Grid item key={employee.id}>
+                  <Chip
+                    label={`${employee.firstName} ${employee.lastName}`}
+                    variant="outlined"
+                    color="primary"
+                  />
+                </Grid>
+              ))}
+            </Grid>
+          </CardContent>
+        </Card>
+      </Grid>
+    </Grid>
+  )
+}
+
+export default AdminDashboard

@@ -1,1 +1,137 @@
-import React, { useState } from 'react'\nimport {\n  Box,\n  Card,\n  CardContent,\n  TextField,\n  Button,\n  Typography,\n  Container,\n  Alert,\n  CircularProgress,\n} from '@mui/material'\nimport { useAuth } from '@/contexts/AuthContext'\n\nconst LoginPage: React.FC = () => {\n  const [email, setEmail] = useState('')\n  const [password, setPassword] = useState('')\n  const [loading, setLoading] = useState(false)\n  const [error, setError] = useState('')\n\n  const { login } = useAuth()\n\n  const handleSubmit = async (e: React.FormEvent) => {\n    e.preventDefault()\n    setError('')\n    setLoading(true)\n\n    try {\n      const success = await login(email, password)\n      if (!success) {\n        setError('פרטי ההתחברות שגויים')\n      }\n    } catch (err) {\n      setError('אירעה שגיאה בהתחברות')\n    } finally {\n      setLoading(false)\n    }\n  }\n\n  return (\n    <Box\n      sx={{\n        minHeight: '100vh',\n        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',\n        display: 'flex',\n        alignItems: 'center',\n        justifyContent: 'center',\n        padding: 2,\n      }}\n    >\n      <Container maxWidth=\"sm\">\n        <Card\n          sx={{\n            boxShadow: '0 8px 32px rgba(0,0,0,0.1)',\n            borderRadius: 2,\n          }}\n        >\n          <CardContent sx={{ p: 4 }}>\n            <Box textAlign=\"center\" mb={4}>\n              <Typography\n                variant=\"h4\"\n                component=\"h1\"\n                gutterBottom\n                sx={{ fontWeight: 600, color: 'primary.main' }}\n              >\n                TimeTask\n              </Typography>\n              <Typography variant=\"body1\" color=\"text.secondary\">\n                מערכת ניהול משימות וזמן\n              </Typography>\n            </Box>\n\n            {error && (\n              <Alert severity=\"error\" sx={{ mb: 3 }}>\n                {error}\n              </Alert>\n            )}\n\n            <form onSubmit={handleSubmit}>\n              <TextField\n                fullWidth\n                label=\"כתובת דוא״ל\"\n                type=\"email\"\n                value={email}\n                onChange={(e) => setEmail(e.target.value)}\n                margin=\"normal\"\n                required\n                autoFocus\n                disabled={loading}\n                sx={{ mb: 2 }}\n              />\n\n              <TextField\n                fullWidth\n                label=\"סיסמה\"\n                type=\"password\"\n                value={password}\n                onChange={(e) => setPassword(e.target.value)}\n                margin=\"normal\"\n                required\n                disabled={loading}\n                sx={{ mb: 3 }}\n              />\n\n              <Button\n                type=\"submit\"\n                fullWidth\n                variant=\"contained\"\n                size=\"large\"\n                disabled={loading}\n                sx={{\n                  py: 1.5,\n                  fontSize: '16px',\n                  fontWeight: 600,\n                }}\n              >\n                {loading ? (\n                  <CircularProgress size={24} color=\"inherit\" />\n                ) : (\n                  'התחברות'\n                )}\n              </Button>\n            </form>\n\n            <Box mt={4} textAlign=\"center\">\n              <Typography variant=\"body2\" color=\"text.secondary\">\n                הגישה מוגבלת למשתמשים רשומים בלבד\n              </Typography>\n            </Box>\n          </CardContent>\n        </Card>\n      </Container>\n    </Box>\n  )\n}\n\nexport default LoginPage"
+import React, { useState } from 'react'
+import {
+  Box,
+  Card,
+  CardContent,
+  TextField,
+  Button,
+  Typography,
+  Container,
+  Alert,
+  CircularProgress,
+} from '@mui/material'
+import { useAuth } from '@/contexts/AuthContext'
+
+const LoginPage: React.FC = () => {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const { login } = useAuth()
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+
+    try {
+      const success = await login(email, password)
+      if (!success) {
+        setError('פרטי ההתחברות שגויים')
+      }
+    } catch (err) {
+      setError('אירעה שגיאה בהתחברות')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Box
+      sx={{
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 2,
+      }}
+    >
+      <Container maxWidth="sm">
+        <Card
+          sx={{
+            boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
+            borderRadius: 2,
+          }}
+        >
+          <CardContent sx={{ p: 4 }}>
+            <Box textAlign="center" mb={4}>
+              <Typography
+                variant="h4"
+                component="h1"
+                gutterBottom
+                sx={{ fontWeight: 600, color: 'primary.main' }}
+              >
+                TimeTask
+              </Typography>
+              <Typography variant="body1" color="text.secondary">
+                מערכת ניהול משימות וזמן
+              </Typography>
+            </Box>
+
+            {error && (
+              <Alert severity="error" sx={{ mb: 3 }}>
+                {error}
+              </Alert>
+            )}
+
+            <form onSubmit={handleSubmit}>
+              <TextField
+                fullWidth
+                label="כתובת דוא״ל"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                margin="normal"
+                required
+                autoFocus
+                disabled={loading}
+                sx={{ mb: 2 }}
+              />
+
+              <TextField
+                fullWidth
+                label="סיסמה"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                margin="normal"
+                required
+                disabled={loading}
+                sx={{ mb: 3 }}
+              />
+
+              <Button
+                type="submit"
+                fullWidth
+                variant="contained"
+                size="large"
+                disabled={loading}
+                sx={{
+                  py: 1.5,
+                  fontSize: '16px',
+                  fontWeight: 600,
+                }}
+              >
+                {loading ? (
+                  <CircularProgress size={24} color="inherit" />
+                ) : (
+                  'התחברות'
+                )}
+              </Button>
+            </form>
+
+            <Box mt={4} textAlign="center">
+              <Typography variant="body2" color="text.secondary">
+                הגישה מוגבלת למשתמשים רשומים בלבד
+              </Typography>
+            </Box>
+          </CardContent>
+        </Card>
+      </Container>
+    </Box>
+  )
+}
+
+export default LoginPage

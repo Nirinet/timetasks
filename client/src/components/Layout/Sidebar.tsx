@@ -125,10 +125,10 @@ const Sidebar: React.FC<SidebarProps> = ({ onItemClick }) => {
         >
           {user?.firstName.charAt(0)}
         </Avatar>
-        <Typography variant=\"h6\" noWrap>
+        <Typography variant="h6" noWrap>
           {user?.firstName} {user?.lastName}
         </Typography>
-        <Typography variant=\"body2\" color=\"text.secondary\">
+        <Typography variant="body2" color="text.secondary">
           {user && getRoleText(user.role)}
         </Typography>
       </Box>
@@ -190,7 +190,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onItemClick }) => {
             <ListItemIcon>
               <SettingsIcon />
             </ListItemIcon>
-            <ListItemText primary=\"הגדרות\" />
+            <ListItemText primary="הגדרות" />
           </ListItemButton>
         </ListItem>
       </List>

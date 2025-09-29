@@ -1,1 +1,314 @@
-import React, { useEffect, useState } from 'react'\nimport {\n  Grid,\n  Card,\n  CardContent,\n  Typography,\n  Box,\n  Chip,\n  List,\n  ListItem,\n  ListItemText,\n  ListItemIcon,\n  LinearProgress,\n  Avatar,\n  AvatarGroup,\n} from '@mui/material'\nimport {\n  Assignment as TaskIcon,\n  FolderOpen as ProjectIcon,\n  Schedule as ScheduleIcon,\n  Person as PersonIcon,\n  CheckCircle as CheckIcon,\n} from '@mui/icons-material'\n\nimport api from '@/services/api'\nimport { Task, Project } from '@/types'\nimport { useAuth } from '@/contexts/AuthContext'\n\ninterface ClientStats {\n  myProjects: number\n  myTasks: number\n  completedTasks: number\n  hoursThisMonth: number\n}\n\nconst ClientDashboard: React.FC = () => {\n  const { user } = useAuth()\n  const [stats, setStats] = useState<ClientStats>({\n    myProjects: 0,\n    myTasks: 0,\n    completedTasks: 0,\n    hoursThisMonth: 0,\n  })\n  const [myProjects, setMyProjects] = useState<Project[]>([])\n  const [myTasks, setMyTasks] = useState<Task[]>([])\n  const [recentActivity, setRecentActivity] = useState<Task[]>([])\n  const [loading, setLoading] = useState(true)\n\n  useEffect(() => {\n    fetchDashboardData()\n  }, [])\n\n  const fetchDashboardData = async () => {\n    if (!user) return\n\n    try {\n      const [projectsRes, tasksRes] = await Promise.all([\n        api.get('/projects'), // Client will only see their projects\n        api.get('/tasks'), // Client will only see their tasks\n      ])\n\n      const projects = projectsRes.data.data.projects\n      const tasks = tasksRes.data.data.tasks\n\n      const completedTasks = tasks.filter((task: Task) => task.status === 'COMPLETED')\n      const recentTasks = tasks\n        .filter((task: Task) => task.status !== 'COMPLETED')\n        .slice(0, 5)\n\n      setStats({\n        myProjects: projects.length,\n        myTasks: tasks.length,\n        completedTasks: completedTasks.length,\n        hoursThisMonth: 0, // Will be calculated from time records\n      })\n\n      setMyProjects(projects.slice(0, 5))\n      setMyTasks(tasks.slice(0, 5))\n      setRecentActivity(recentTasks)\n    } catch (error) {\n      console.error('Error fetching dashboard data:', error)\n    } finally {\n      setLoading(false)\n    }\n  }\n\n  const StatCard = ({ title, value, icon, color = 'primary' }: {\n    title: string\n    value: number | string\n    icon: React.ReactElement\n    color?: string\n  }) => (\n    <Card>\n      <CardContent>\n        <Box display=\"flex\" alignItems=\"center\" justifyContent=\"space-between\">\n          <Box>\n            <Typography color=\"text.secondary\" gutterBottom variant=\"body2\">\n              {title}\n            </Typography>\n            <Typography variant=\"h4\" component=\"div\">\n              {value}\n            </Typography>\n          </Box>\n          <Box\n            sx={{\n              p: 1,\n              borderRadius: 2,\n              bgcolor: `${color}.light`,\n              color: `${color}.contrastText`,\n            }}\n          >\n            {icon}\n          </Box>\n        </Box>\n      </CardContent>\n    </Card>\n  )\n\n  const getProjectProgress = (project: Project) => {\n    if (!project.tasks || project.tasks.length === 0) return 0\n    const completed = project.tasks.filter(task => task.status === 'COMPLETED').length\n    return Math.round((completed / project.tasks.length) * 100)\n  }\n\n  const getTaskStatusColor = (status: string) => {\n    switch (status) {\n      case 'NEW': return 'default'\n      case 'IN_PROGRESS': return 'primary'\n      case 'WAITING_CLIENT': return 'warning'\n      case 'COMPLETED': return 'success'\n      default: return 'default'\n    }\n  }\n\n  const getProjectStatusColor = (status: string) => {\n    switch (status) {\n      case 'ACTIVE': return 'success'\n      case 'ON_HOLD': return 'warning'\n      case 'COMPLETED': return 'info'\n      default: return 'default'\n    }\n  }\n\n  if (loading) {\n    return (\n      <Box>\n        <LinearProgress sx={{ mb: 2 }} />\n        <Typography>טוען נתוני דשבורד...</Typography>\n      </Box>\n    )\n  }\n\n  return (\n    <Grid container spacing={3}>\n      {/* Stats Cards */}\n      <Grid item xs={12} sm={6} md={3}>\n        <StatCard\n          title=\"הפרויקטים שלי\"\n          value={stats.myProjects}\n          icon={<ProjectIcon />}\n          color=\"primary\"\n        />\n      </Grid>\n      <Grid item xs={12} sm={6} md={3}>\n        <StatCard\n          title=\"המשימות שלי\"\n          value={stats.myTasks}\n          icon={<TaskIcon />}\n          color=\"secondary\"\n        />\n      </Grid>\n      <Grid item xs={12} sm={6} md={3}>\n        <StatCard\n          title=\"משימות הושלמו\"\n          value={stats.completedTasks}\n          icon={<CheckIcon />}\n          color=\"success\"\n        />\n      </Grid>\n      <Grid item xs={12} sm={6} md={3}>\n        <StatCard\n          title=\"שעות החודש\"\n          value={stats.hoursThisMonth}\n          icon={<ScheduleIcon />}\n          color=\"info\"\n        />\n      </Grid>\n\n      {/* My Projects */}\n      <Grid item xs={12} md={6}>\n        <Card>\n          <CardContent>\n            <Typography variant=\"h6\" gutterBottom>\n              הפרויקטים שלי\n            </Typography>\n            <List>\n              {myProjects.map((project) => {\n                const progress = getProjectProgress(project)\n                return (\n                  <ListItem key={project.id}>\n                    <ListItemIcon>\n                      <ProjectIcon />\n                    </ListItemIcon>\n                    <ListItemText\n                      primary={\n                        <Box display=\"flex\" alignItems=\"center\" gap={1}>\n                          <Typography variant=\"body1\">\n                            {project.name}\n                          </Typography>\n                          <Chip\n                            size=\"small\"\n                            label={project.status}\n                            color={getProjectStatusColor(project.status)}\n                          />\n                        </Box>\n                      }\n                      secondary={\n                        <Box mt={1}>\n                          <Typography variant=\"body2\" color=\"text.secondary\">\n                            התקדמות: {progress}%\n                          </Typography>\n                          <LinearProgress\n                            variant=\"determinate\"\n                            value={progress}\n                            sx={{ mt: 0.5 }}\n                          />\n                        </Box>\n                      }\n                    />\n                  </ListItem>\n                )\n              })}\n            </List>\n          </CardContent>\n        </Card>\n      </Grid>\n\n      {/* Recent Activity */}\n      <Grid item xs={12} md={6}>\n        <Card>\n          <CardContent>\n            <Typography variant=\"h6\" gutterBottom>\n              פעילות אחרונה\n            </Typography>\n            <List>\n              {recentActivity.length === 0 ? (\n                <ListItem>\n                  <ListItemText\n                    primary=\"אין פעילות אחרונה\"\n                    secondary=\"כל המשימות הושלמו\"\n                  />\n                </ListItem>\n              ) : (\n                recentActivity.map((task) => (\n                  <ListItem key={task.id}>\n                    <ListItemIcon>\n                      <TaskIcon />\n                    </ListItemIcon>\n                    <ListItemText\n                      primary={task.title}\n                      secondary={\n                        <Box display=\"flex\" alignItems=\"center\" gap={1}>\n                          <Chip\n                            size=\"small\"\n                            label={task.status}\n                            color={getTaskStatusColor(task.status)}\n                          />\n                          <Typography variant=\"body2\" color=\"text.secondary\">\n                            {task.project.name}\n                          </Typography>\n                          {task.assignedUsers && task.assignedUsers.length > 0 && (\n                            <AvatarGroup max={3} sx={{ '& .MuiAvatar-root': { width: 24, height: 24, fontSize: '12px' } }}>\n                              {task.assignedUsers\n                                .filter(au => au.user)\n                                .map((au) => (\n                                  <Avatar key={au.user!.firstName}>\n                                    {au.user!.firstName.charAt(0)}\n                                  </Avatar>\n                                ))}\n                            </AvatarGroup>\n                          )}\n                        </Box>\n                      }\n                    />\n                  </ListItem>\n                ))\n              )}\n            </List>\n          </CardContent>\n        </Card>\n      </Grid>\n\n      {/* Quick Actions */}\n      <Grid item xs={12}>\n        <Card>\n          <CardContent>\n            <Typography variant=\"h6\" gutterBottom>\n              פעולות מהירות\n            </Typography>\n            <Typography variant=\"body2\" color=\"text.secondary\">\n              • צור משימה חדשה בפרויקט קיים<br />\n              • העלה קבצים למשימות<br />\n              • הוסף תגובות והערות<br />\n              • עקוב אחר התקדמות הפרויקטים<br />\n              • צפה בדוחות זמן עבודה\n            </Typography>\n          </CardContent>\n        </Card>\n      </Grid>\n    </Grid>\n  )\n}\n\nexport default ClientDashboard"
+import React, { useEffect, useState } from 'react'
+import {
+  Grid,
+  Card,
+  CardContent,
+  Typography,
+  Box,
+  Chip,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
+  LinearProgress,
+  Avatar,
+  AvatarGroup,
+} from '@mui/material'
+import {
+  Assignment as TaskIcon,
+  FolderOpen as ProjectIcon,
+  Schedule as ScheduleIcon,
+  Person as PersonIcon,
+  CheckCircle as CheckIcon,
+} from '@mui/icons-material'
+
+import api from '@/services/api'
+import { Task, Project } from '@/types'
+import { useAuth } from '@/contexts/AuthContext'
+
+interface ClientStats {
+  myProjects: number
+  myTasks: number
+  completedTasks: number
+  hoursThisMonth: number
+}
+
+const ClientDashboard: React.FC = () => {
+  const { user } = useAuth()
+  const [stats, setStats] = useState<ClientStats>({
+    myProjects: 0,
+    myTasks: 0,
+    completedTasks: 0,
+    hoursThisMonth: 0,
+  })
+  const [myProjects, setMyProjects] = useState<Project[]>([])
+  const [myTasks, setMyTasks] = useState<Task[]>([])
+  const [recentActivity, setRecentActivity] = useState<Task[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetchDashboardData()
+  }, [])
+
+  const fetchDashboardData = async () => {
+    if (!user) return
+
+    try {
+      const [projectsRes, tasksRes] = await Promise.all([
+        api.get('/projects'), // Client will only see their projects
+        api.get('/tasks'), // Client will only see their tasks
+      ])
+
+      const projects = projectsRes.data.data.projects
+      const tasks = tasksRes.data.data.tasks
+
+      const completedTasks = tasks.filter((task: Task) => task.status === 'COMPLETED')
+      const recentTasks = tasks
+        .filter((task: Task) => task.status !== 'COMPLETED')
+        .slice(0, 5)
+
+      setStats({
+        myProjects: projects.length,
+        myTasks: tasks.length,
+        completedTasks: completedTasks.length,
+        hoursThisMonth: 0, // Will be calculated from time records
+      })
+
+      setMyProjects(projects.slice(0, 5))
+      setMyTasks(tasks.slice(0, 5))
+      setRecentActivity(recentTasks)
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const StatCard = ({ title, value, icon, color = 'primary' }: {
+    title: string
+    value: number | string
+    icon: React.ReactElement
+    color?: string
+  }) => (
+    <Card>
+      <CardContent>
+        <Box display="flex" alignItems="center" justifyContent="space-between">
+          <Box>
+            <Typography color="text.secondary" gutterBottom variant="body2">
+              {title}
+            </Typography>
+            <Typography variant="h4" component="div">
+              {value}
+            </Typography>
+          </Box>
+          <Box
+            sx={{
+              p: 1,
+              borderRadius: 2,
+              bgcolor: `${color}.light`,
+              color: `${color}.contrastText`,
+            }}
+          >
+            {icon}
+          </Box>
+        </Box>
+      </CardContent>
+    </Card>
+  )
+
+  const getProjectProgress = (project: Project) => {
+    if (!project.tasks || project.tasks.length === 0) return 0
+    const completed = project.tasks.filter(task => task.status === 'COMPLETED').length
+    return Math.round((completed / project.tasks.length) * 100)
+  }
+
+  const getTaskStatusColor = (status: string) => {
+    switch (status) {
+      case 'NEW': return 'default'
+      case 'IN_PROGRESS': return 'primary'
+      case 'WAITING_CLIENT': return 'warning'
+      case 'COMPLETED': return 'success'
+      default: return 'default'
+    }
+  }
+
+  const getProjectStatusColor = (status: string) => {
+    switch (status) {
+      case 'ACTIVE': return 'success'
+      case 'ON_HOLD': return 'warning'
+      case 'COMPLETED': return 'info'
+      default: return 'default'
+    }
+  }
+
+  if (loading) {
+    return (
+      <Box>
+        <LinearProgress sx={{ mb: 2 }} />
+        <Typography>טוען נתוני דשבורד...</Typography>
+      </Box>
+    )
+  }
+
+  return (
+    <Grid container spacing={3}>
+      {/* Stats Cards */}
+      <Grid item xs={12} sm={6} md={3}>
+        <StatCard
+          title="הפרויקטים שלי"
+          value={stats.myProjects}
+          icon={<ProjectIcon />}
+          color="primary"
+        />
+      </Grid>
+      <Grid item xs={12} sm={6} md={3}>
+        <StatCard
+          title="המשימות שלי"
+          value={stats.myTasks}
+          icon={<TaskIcon />}
+          color="secondary"
+        />
+      </Grid>
+      <Grid item xs={12} sm={6} md={3}>
+        <StatCard
+          title="משימות הושלמו"
+          value={stats.completedTasks}
+          icon={<CheckIcon />}
+          color="success"
+        />
+      </Grid>
+      <Grid item xs={12} sm={6} md={3}>
+        <StatCard
+          title="שעות החודש"
+          value={stats.hoursThisMonth}
+          icon={<ScheduleIcon />}
+          color="info"
+        />
+      </Grid>
+
+      {/* My Projects */}
+      <Grid item xs={12} md={6}>
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              הפרויקטים שלי
+            </Typography>
+            <List>
+              {myProjects.map((project) => {
+                const progress = getProjectProgress(project)
+                return (
+                  <ListItem key={project.id}>
+                    <ListItemIcon>
+                      <ProjectIcon />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={
+                        <Box display="flex" alignItems="center" gap={1}>
+                          <Typography variant="body1">
+                            {project.name}
+                          </Typography>
+                          <Chip
+                            size="small"
+                            label={project.status}
+                            color={getProjectStatusColor(project.status)}
+                          />
+                        </Box>
+                      }
+                      secondary={
+                        <Box mt={1}>
+                          <Typography variant="body2" color="text.secondary">
+                            התקדמות: {progress}%
+                          </Typography>
+                          <LinearProgress
+                            variant="determinate"
+                            value={progress}
+                            sx={{ mt: 0.5 }}
+                          />
+                        </Box>
+                      }
+                    />
+                  </ListItem>
+                )
+              })}
+            </List>
+          </CardContent>
+        </Card>
+      </Grid>
+
+      {/* Recent Activity */}
+      <Grid item xs={12} md={6}>
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              פעילות אחרונה
+            </Typography>
+            <List>
+              {recentActivity.length === 0 ? (
+                <ListItem>
+                  <ListItemText
+                    primary="אין פעילות אחרונה"
+                    secondary="כל המשימות הושלמו"
+                  />
+                </ListItem>
+              ) : (
+                recentActivity.map((task) => (
+                  <ListItem key={task.id}>
+                    <ListItemIcon>
+                      <TaskIcon />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={task.title}
+                      secondary={
+                        <Box display="flex" alignItems="center" gap={1}>
+                          <Chip
+                            size="small"
+                            label={task.status}
+                            color={getTaskStatusColor(task.status)}
+                          />
+                          <Typography variant="body2" color="text.secondary">
+                            {task.project.name}
+                          </Typography>
+                          {task.assignedUsers && task.assignedUsers.length > 0 && (
+                            <AvatarGroup max={3} sx={{ '& .MuiAvatar-root': { width: 24, height: 24, fontSize: '12px' } }}>
+                              {task.assignedUsers
+                                .filter(au => au.user)
+                                .map((au) => (
+                                  <Avatar key={au.user!.firstName}>
+                                    {au.user!.firstName.charAt(0)}
+                                  </Avatar>
+                                ))}
+                            </AvatarGroup>
+                          )}
+                        </Box>
+                      }
+                    />
+                  </ListItem>
+                ))
+              )}
+            </List>
+          </CardContent>
+        </Card>
+      </Grid>
+
+      {/* Quick Actions */}
+      <Grid item xs={12}>
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              פעולות מהירות
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              • צור משימה חדשה בפרויקט קיים<br />
+              • העלה קבצים למשימות<br />
+              • הוסף תגובות והערות<br />
+              • עקוב אחר התקדמות הפרויקטים<br />
+              • צפה בדוחות זמן עבודה
+            </Typography>
+          </CardContent>
+        </Card>
+      </Grid>
+    </Grid>
+  )
+}
+
+export default ClientDashboard

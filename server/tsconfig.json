@@ -27,7 +27,6 @@
       "@/routes/*": ["./routes/*"],
       "@/scripts/*": ["./scripts/*"]
     },
-    "types": ["node", "jest"],
     "typeRoots": ["./node_modules/@types", "./src/types"],
     "noImplicitAny": true,
     "strictNullChecks": true,

@@ -27,7 +27,9 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('Error caught by boundary:', error, errorInfo)
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Error caught by boundary:', error, errorInfo)
+    }
     this.setState({
       error,
       errorInfo,
@@ -36,11 +38,8 @@ class ErrorBoundary extends Component<Props, State> {
     // Log to external service in production
     if (process.env.NODE_ENV === 'production') {
       // TODO: Send to logging service
-      console.error('Production error:', {
-        message: error.toString(),
-        stack: errorInfo.componentStack,
-        timestamp: new Date().toISOString(),
-      })
+      // Send error to logging service in production
+      // Example: loggerService.error({...})
     }
   }
 

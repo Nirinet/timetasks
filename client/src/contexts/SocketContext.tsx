@@ -33,11 +33,10 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
   const connectSocket = useCallback(() => {
     if (!user) return null
 
-    const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000'
+    const SOCKET_URL = (import.meta as any).env.VITE_SOCKET_URL || 'http://localhost:3000'
     const token = localStorage.getItem('accessToken')
 
     if (!token) {
-      console.error('No authentication token found')
       return null
     }
 
@@ -56,12 +55,10 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
     newSocket.on('connect', () => {
       setConnected(true)
       newSocket.emit('join', user.id)
-      console.log('Connected to server')
     })
 
     newSocket.on('disconnect', (reason) => {
       setConnected(false)
-      console.log('Disconnected from server:', reason)
       
       if (reason === 'io server disconnect') {
         // Server disconnected, attempt to reconnect
@@ -72,7 +69,6 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
     })
 
     newSocket.on('connect_error', (error) => {
-      console.error('Connection error:', error.message)
       if (error.message === 'Authentication error') {
         toast.error('שגיאת אימות. אנא התחבר מחדש.')
         // Optionally logout the user
@@ -98,14 +94,14 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
     })
 
     newSocket.on('task_updated', (data) => {
-      toast.info(`משימה עודכנה: ${data.taskTitle}`, {
+      toast(`משימה עודכנה: ${data.taskTitle}`, {
         icon: '📝',
       })
     })
 
     newSocket.on('comment_added', (data) => {
       if (data.authorId !== user.id) {
-        toast.info(`תגובה חדשה ב: ${data.taskTitle || 'משימה'}`, {
+        toast(`תגובה חדשה ב: ${data.taskTitle || 'משימה'}`, {
           icon: '💬',
         })
       }

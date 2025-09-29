@@ -70,7 +70,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
       return false
     } catch (error: any) {
-      console.error('Login error:', error)
       return false
     }
   }
@@ -79,7 +78,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       await api.post('/auth/logout')
     } catch (error) {
-      console.error('Logout error:', error)
     }
 
     localStorage.removeItem('accessToken')
@@ -99,7 +97,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
       return false
     } catch (error) {
-      console.error('Update profile error:', error)
       return false
     }
   }

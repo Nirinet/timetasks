@@ -20,10 +20,10 @@ function App() {
   if (loading) {
     return (
       <Box
-        display=\"flex\"
-        justifyContent=\"center\"
-        alignItems=\"center\"
-        minHeight=\"100vh\"
+        display="flex"
+        justifyContent="center"
+        alignItems="center"
+        minHeight="100vh"
       >
         <CircularProgress />
       </Box>
@@ -33,8 +33,8 @@ function App() {
   if (!user) {
     return (
       <Routes>
-        <Route path=\"/login\" element={<LoginPage />} />
-        <Route path=\"*\" element={<Navigate to=\"/login\" replace />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     )
   }
@@ -42,28 +42,28 @@ function App() {
   return (
     <Layout>
       <Routes>
-        <Route path=\"/\" element={<Dashboard />} />
-        <Route path=\"/tasks\" element={<TasksPage />} />
-        <Route path=\"/projects\" element={<ProjectsPage />} />
-        <Route path=\"/time-tracking\" element={<TimeTrackingPage />} />
-        <Route path=\"/reports\" element={<ReportsPage />} />
-        <Route path=\"/profile\" element={<ProfilePage />} />
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/tasks" element={<TasksPage />} />
+        <Route path="/projects" element={<ProjectsPage />} />
+        <Route path="/time-tracking" element={<TimeTrackingPage />} />
+        <Route path="/reports" element={<ReportsPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
 
         {/* Admin and Employee routes */}
         {(user.role === 'ADMIN' || user.role === 'EMPLOYEE') && (
           <>
-            <Route path=\"/clients\" element={<ClientsPage />} />
+            <Route path="/clients" element={<ClientsPage />} />
           </>
         )}
 
         {/* Admin only routes */}
         {user.role === 'ADMIN' && (
           <>
-            <Route path=\"/users\" element={<UsersPage />} />
+            <Route path="/users" element={<UsersPage />} />
           </>
         )}
 
-        <Route path=\"*\" element={<Navigate to=\"/\" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>
   )

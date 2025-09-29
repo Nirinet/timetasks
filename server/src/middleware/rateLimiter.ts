@@ -2,7 +2,6 @@ import { RateLimiterMemory } from 'rate-limiter-flexible';
 import { Request, Response, NextFunction } from 'express';
 
 const rateLimiter = new RateLimiterMemory({
-  keyGenerator: (req: Request) => req.ip,
   points: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100'),
   duration: parseInt(process.env.RATE_LIMIT_WINDOW || '15') * 60, // 15 minutes in seconds
 });
@@ -13,7 +12,8 @@ export const rateLimiterMiddleware = async (
   next: NextFunction
 ) => {
   try {
-    await rateLimiter.consume(req.ip);
+    const key = req.ip || 'default-key';
+    await rateLimiter.consume(key);
     next();
   } catch (rejRes: any) {
     const totalHits = Number(rejRes.totalHits);
