@@ -7,7 +7,7 @@ WORKDIR /app/client
 
 # Copy client package files
 COPY client/package*.json ./
-RUN npm ci --only=production
+RUN npm ci
 
 # Copy client source code
 COPY client/ .
