@@ -94,6 +94,20 @@ The container automatically runs database migrations on startup. To tear everyth
 docker compose -f docker-compose.simple.yml down -v
 ```
 
+### 🔐 Prepare TLS certificates (all platforms)
+
+The `docker-compose.yml` profile ships with Nginx configured for HTTPS termination and expects a TLS bundle in `nginx/ssl/`. Run the helper script **before** `docker compose --profile dev up` (or copy your own certificates) so the container boots without errors.
+
+```bash
+./scripts/generate-dev-cert.sh --force
+```
+
+- Generates `fullchain.pem`, `privkey.pem`, and `chain.pem` for `localhost`
+- Creates a development certificate authority at `nginx/ssl/dev-ca.cert.pem`
+- Re-run with `--force` to overwrite existing files without prompting (useful for automation)
+
+> ℹ️ Import `nginx/ssl/dev-ca.cert.pem` into your OS/browser trust store to remove HTTPS warnings. Skip this step when using the simplified compose file (`docker-compose.simple.yml`), which serves HTTP directly and does not require TLS.
+
 ### 🪟 Windows / Docker Desktop (dev profile)
 
 For contributors running the full development stack on Windows (Docker Desktop via WSL2 or Git Bash), make sure the TLS bundle required by Nginx exists **before** building the containers.
