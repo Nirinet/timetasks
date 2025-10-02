@@ -63,6 +63,10 @@ COPY --from=server-builder --chown=nodejs:nodejs /app/server/node_modules ./serv
 COPY --from=server-builder --chown=nodejs:nodejs /app/server/prisma ./server/prisma
 COPY --from=server-builder --chown=nodejs:nodejs /app/server/package.json ./server/package.json
 
+# Copy docker entrypoint script
+COPY --chown=nodejs:nodejs scripts/docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
+
 # Copy configuration files
 COPY --chown=nodejs:nodejs ecosystem.config.js ./
 COPY --chown=nodejs:nodejs server/.env.example ./server/.env.example
@@ -82,7 +86,7 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:3000/health || exit 1
 
 # Use tini to handle signals properly
-ENTRYPOINT ["/sbin/tini", "--"]
+ENTRYPOINT ["/sbin/tini", "--", "/app/docker-entrypoint.sh"]
 
-# Start the application
+# Start the application (the entrypoint will exec this command)
 CMD ["node", "server/dist/index.js"]

@@ -6,6 +6,8 @@ import dotenv from 'dotenv';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import jwt from 'jsonwebtoken';
+import path from 'path';
+import { existsSync } from 'fs';
 
 import { PrismaClient } from '@prisma/client';
 import { errorHandler } from './middleware/errorHandler';
@@ -138,6 +140,21 @@ app.use('/api/reports', reportRoutes);
 
 // Serve uploaded files
 app.use('/uploads', express.static(process.env.UPLOAD_DIR || './uploads'));
+
+const serveFlag = process.env.SERVE_CLIENT ?? (process.env.NODE_ENV === 'production' ? 'true' : 'false');
+const shouldServeClient = serveFlag.toLowerCase() === 'true';
+const clientBuildPath = path.resolve(__dirname, '../../client/dist');
+
+if (shouldServeClient && existsSync(clientBuildPath)) {
+  app.use(express.static(clientBuildPath));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
+      return next();
+    }
+
+    res.sendFile(path.join(clientBuildPath, 'index.html'));
+  });
+}
 
 // Socket.IO Authentication Middleware
 io.use(async (socket, next) => {
