@@ -27,7 +27,7 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    if (process.env.NODE_ENV === 'development') {
+    if (import.meta.env.DEV) {
       console.error('Error caught by boundary:', error, errorInfo)
     }
     this.setState({
@@ -36,7 +36,7 @@ class ErrorBoundary extends Component<Props, State> {
     })
 
     // Log to external service in production
-    if (process.env.NODE_ENV === 'production') {
+    if (import.meta.env.PROD) {
       // TODO: Send to logging service
       // Send error to logging service in production
       // Example: loggerService.error({...})
@@ -64,7 +64,7 @@ class ErrorBoundary extends Component<Props, State> {
             <Typography variant="body1" color="text.secondary" paragraph>
               אירעה שגיאה בלתי צפויה באפליקציה. הצוות שלנו קיבל התראה על הבעיה.
             </Typography>
-            {process.env.NODE_ENV === 'development' && this.state.error && (
+            {import.meta.env.DEV && this.state.error && (
               <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.100', borderRadius: 1, textAlign: 'left' }}>
                 <Typography variant="caption" component="pre" sx={{ fontFamily: 'monospace' }}>
                   {this.state.error.toString()}
