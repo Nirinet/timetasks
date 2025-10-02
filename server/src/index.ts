@@ -14,6 +14,7 @@ import { errorHandler } from './middleware/errorHandler';
 import { rateLimiter } from './middleware/rateLimiter';
 
 import { logger } from './utils/logger';
+import { initMonitoring, metricsHandler, monitoringMiddleware } from './utils/monitoring';
 
 // Import routes
 import authRoutes from './routes/auth';
@@ -140,6 +141,16 @@ app.use('/api/reports', reportRoutes);
 
 // Serve uploaded files
 app.use('/uploads', express.static(process.env.UPLOAD_DIR || './uploads'));
+
+const monitoringFlag = process.env.ENABLE_MONITORING ?? (process.env.NODE_ENV === 'production' ? 'true' : 'false');
+const isMonitoringEnabled = monitoringFlag.toLowerCase() === 'true';
+
+if (isMonitoringEnabled) {
+  initMonitoring();
+  app.use(monitoringMiddleware);
+  app.get('/metrics', metricsHandler);
+  logger.info('📈 Monitoring enabled at /metrics endpoint');
+}
 
 const serveFlag = process.env.SERVE_CLIENT ?? (process.env.NODE_ENV === 'production' ? 'true' : 'false');
 const shouldServeClient = serveFlag.toLowerCase() === 'true';
