@@ -21,7 +21,7 @@ FROM node:18-alpine AS server-builder
 WORKDIR /app/server
 
 # Install build dependencies
-RUN apk add --no-cache python3 make g++
+RUN apk add --no-cache python3 make g++ openssl
 
 # Copy server package files
 COPY server/package*.json ./
@@ -46,7 +46,8 @@ FROM node:18-alpine AS production
 RUN apk add --no-cache \
     postgresql-client \
     curl \
-    tini
+    tini \
+    openssl
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
