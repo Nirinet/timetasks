@@ -94,6 +94,31 @@ The container automatically runs database migrations on startup. To tear everyth
 docker compose -f docker-compose.simple.yml down -v
 ```
 
+### 🪟 Windows / Docker Desktop (dev profile)
+
+For contributors running the full development stack on Windows (Docker Desktop via WSL2 or Git Bash), make sure the TLS bundle required by Nginx exists **before** building the containers.
+
+1. **Generate development certificates** (or copy your own `fullchain.pem`, `privkey.pem`, and `chain.pem` into `nginx/ssl/`):
+   ```bash
+   ./scripts/generate-dev-cert.sh
+   ```
+
+2. **Optional pre-flight check** – confirm the three files exist before continuing:
+   ```bash
+   test -f nginx/ssl/fullchain.pem \
+     && test -f nginx/ssl/privkey.pem \
+     && test -f nginx/ssl/chain.pem \
+     && echo "SSL bundle ready" \
+     || { echo "Missing SSL files – run scripts/generate-dev-cert.sh"; exit 1; }
+   ```
+
+3. **Start the compose stack with the development profile**:
+   ```bash
+   docker compose --profile dev up --build
+   ```
+
+> ℹ️ The helper script creates a local certificate authority and issues a `localhost` certificate for Nginx. Import `nginx/ssl/dev-ca.cert.pem` into Windows to avoid browser warnings, or replace the files with certificates signed by your own authority.
+
 ## Default Login Credentials
 
 - **Admin**: admin@timetask.com / admin123
