@@ -1,6 +1,38 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+usage() {
+  cat <<'USAGE'
+Generate self-signed development TLS certificates for localhost.
+
+Usage:
+  ./scripts/generate-dev-cert.sh [--force]
+
+Options:
+  -f, --force   Overwrite existing certificates without prompting
+  -h, --help    Show this help message
+USAGE
+}
+
+FORCE=0
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -f|--force)
+      FORCE=1
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CERT_DIR="$ROOT_DIR/nginx/ssl"
 CA_KEY="$CERT_DIR/dev-ca.key.pem"
@@ -22,11 +54,15 @@ fi
 mkdir -p "$CERT_DIR"
 
 if [[ -f "$FULLCHAIN" || -f "$SERVER_KEY" ]]; then
-  echo "Existing certificates detected in $CERT_DIR." >&2
-  read -r -p "Overwrite existing certificates? [y/N] " REPLY
-  if [[ ! "$REPLY" =~ ^[Yy]$ ]]; then
-    echo "Aborting without changes." >&2
-    exit 0
+  if [[ "$FORCE" -eq 0 ]]; then
+    echo "Existing certificates detected in $CERT_DIR." >&2
+    read -r -p "Overwrite existing certificates? [y/N] " REPLY
+    if [[ ! "$REPLY" =~ ^[Yy]$ ]]; then
+      echo "Aborting without changes." >&2
+      exit 0
+    fi
+  else
+    echo "Overwriting existing certificates in $CERT_DIR" >&2
   fi
 fi
 
