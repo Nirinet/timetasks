@@ -90,4 +90,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 ENTRYPOINT ["/sbin/tini", "--", "/app/docker-entrypoint.sh"]
 
 # Start the application (the entrypoint will exec this command)
-CMD ["node", "server/dist/index.js"]
+CMD ["node", "dist/index.js"]
