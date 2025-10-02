@@ -14,6 +14,8 @@ A comprehensive task management system in Hebrew designed for software developme
 - ✅ **Graceful Shutdown** handling added
 - ✅ **Memory Leak Prevention** in Socket.IO connections
 - ✅ **API Response Pagination** for better performance
+- ✅ **Task Automations Stabilized**: automatic parent/project completion rules now run reliably
+- ✅ **Docker Entrypoint**: automatic Prisma migrations when running in containers
 
 ## Features
 
@@ -69,6 +71,28 @@ A comprehensive task management system in Hebrew designed for software developme
    - Frontend: http://localhost:5173
    - Backend API: http://localhost:3000
    - Health Check: http://localhost:3000/health
+
+## 🐳 Docker Quick Start
+
+> Want to try the full stack without installing Node.js? Use the simplified compose file.
+
+1. **Copy environment templates** (optional but recommended):
+   ```bash
+   cp server/.env.example server/.env
+   ```
+
+2. **Build and start the stack**:
+   ```bash
+   docker compose -f docker-compose.simple.yml up --build
+   ```
+
+3. **Open the app**:
+   - Application & API: http://localhost:3000
+
+The container automatically runs database migrations on startup. To tear everything down:
+```bash
+docker compose -f docker-compose.simple.yml down -v
+```
 
 ## Default Login Credentials
 

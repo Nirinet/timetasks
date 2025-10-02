@@ -2,7 +2,8 @@ import express from 'express';
 import Joi from 'joi';
 import { prisma } from '../index';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
-import { TaskStatus, Priority } from '@prisma/client';
+import { TaskStatus, ProjectStatus } from '@prisma/client';
+import { logger } from '../utils/logger';
 
 const router = express.Router();
 
@@ -130,12 +131,21 @@ router.post('/', authenticateToken, async (req: AuthRequest, res, next) => {
     const task = await prisma.task.create({
       data: {
         ...taskData,
-        assignedUsers: {
-          create: [
-            ...assignedUserIds.map((userId: string) => ({ userId })),
-            ...assignedClientIds.map((clientId: string) => ({ clientId }))
-          ]
-        }
+        assignedUsers:
+          assignedUserIds.length > 0 || assignedClientIds.length > 0
+            ? {
+                create: [
+                  ...assignedUserIds.map((userId: string) => ({
+                    userId,
+                    assignedBy: req.user!.id
+                  })),
+                  ...assignedClientIds.map((clientId: string) => ({
+                    clientId,
+                    assignedBy: req.user!.id
+                  }))
+                ]
+              }
+            : undefined
       },
       include: {
         project: {
@@ -158,6 +168,8 @@ router.post('/', authenticateToken, async (req: AuthRequest, res, next) => {
         }
       }
     });
+
+    await handleTaskAutomation(task.id);
 
     res.status(201).json({
       success: true,
@@ -339,6 +351,8 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
       }
     });
 
+    await handleTaskAutomation(task.id);
+
     res.json({
       success: true,
       message: 'משימה עודכנה בהצלחה',
@@ -350,3 +364,103 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
 });
 
 export default router;
+
+async function handleTaskAutomation(taskId: string, visited: Set<string> = new Set()): Promise<void> {
+  if (visited.has(taskId)) {
+    return;
+  }
+
+  visited.add(taskId);
+
+  try {
+    const task = await prisma.task.findUnique({
+      where: { id: taskId },
+      select: {
+        id: true,
+        status: true,
+        parentTaskId: true,
+        projectId: true
+      }
+    });
+
+    if (!task) {
+      return;
+    }
+
+    const [subtaskCount, incompleteSubtasks] = await Promise.all([
+      prisma.task.count({ where: { parentTaskId: task.id } }),
+      prisma.task.count({
+        where: {
+          parentTaskId: task.id,
+          status: { not: TaskStatus.COMPLETED }
+        }
+      })
+    ]);
+
+    if (subtaskCount > 0) {
+      if (incompleteSubtasks === 0 && task.status !== TaskStatus.COMPLETED) {
+        await prisma.task.update({
+          where: { id: task.id },
+          data: { status: TaskStatus.COMPLETED }
+        });
+        task.status = TaskStatus.COMPLETED;
+      } else if (incompleteSubtasks > 0 && task.status === TaskStatus.COMPLETED) {
+        await prisma.task.update({
+          where: { id: task.id },
+          data: { status: TaskStatus.IN_PROGRESS }
+        });
+        task.status = TaskStatus.IN_PROGRESS;
+      }
+    }
+
+    if (task.parentTaskId) {
+      const incompleteSiblings = await prisma.task.count({
+        where: {
+          parentTaskId: task.parentTaskId,
+          status: { not: TaskStatus.COMPLETED }
+        }
+      });
+
+      if (incompleteSiblings === 0) {
+        await prisma.task.update({
+          where: { id: task.parentTaskId },
+          data: { status: TaskStatus.COMPLETED }
+        });
+      } else {
+        await prisma.task.updateMany({
+          where: {
+            id: task.parentTaskId,
+            status: TaskStatus.COMPLETED
+          },
+          data: { status: TaskStatus.IN_PROGRESS }
+        });
+      }
+
+      await handleTaskAutomation(task.parentTaskId, visited);
+    }
+
+    const incompleteProjectTasks = await prisma.task.count({
+      where: {
+        projectId: task.projectId,
+        status: { not: TaskStatus.COMPLETED }
+      }
+    });
+
+    if (incompleteProjectTasks === 0) {
+      await prisma.project.update({
+        where: { id: task.projectId },
+        data: { status: ProjectStatus.COMPLETED }
+      });
+    } else {
+      await prisma.project.updateMany({
+        where: {
+          id: task.projectId,
+          status: ProjectStatus.COMPLETED
+        },
+        data: { status: ProjectStatus.ACTIVE }
+      });
+    }
+  } catch (error) {
+    logger.error('Task automation failed', { taskId, error });
+  }
+}
