@@ -145,7 +145,6 @@ static/uploads/
 media/
 
 # Prisma
-server/prisma/migrations/
 server/prisma/*.db
 server/prisma/*.db-journal
 prisma/client/
@@ -156,7 +155,6 @@ tsconfig.tsbuildinfo
 
 # Docker
 docker-compose.override.yml
-.dockerignore
 
 # Backup files
 *.backup

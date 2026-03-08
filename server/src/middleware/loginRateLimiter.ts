@@ -1,17 +1,44 @@
-import { RateLimiterMemory } from 'rate-limiter-flexible';
+import { RateLimiterRedis, RateLimiterMemory, IRateLimiterOptions } from 'rate-limiter-flexible';
 import { Request, Response, NextFunction } from 'express';
+import { getRedisClient } from '../utils/redis';
 import { logger } from '../utils/logger';
 
-// Separate rate limiter for login attempts
-const loginLimiter = new RateLimiterMemory({
+const MAX_FAILED_ATTEMPTS_MAP_SIZE = 10000;
+
+const loginOptions: IRateLimiterOptions = {
   keyPrefix: 'login',
   points: 5, // 5 attempts
   duration: 900, // per 15 minutes
   blockDuration: 900, // block for 15 minutes after limit reached
-});
+};
+
+// Use Redis when available (required for cluster mode), fallback to Memory for dev
+const redis = getRedisClient();
+let loginLimiter: RateLimiterRedis | RateLimiterMemory;
+
+if (redis) {
+  loginLimiter = new RateLimiterRedis({
+    ...loginOptions,
+    storeClient: redis,
+    insuranceLimiter: new RateLimiterMemory(loginOptions),
+  });
+} else {
+  loginLimiter = new RateLimiterMemory(loginOptions);
+}
 
 // Track consecutive failed attempts by IP and email
 const failedAttempts = new Map<string, number>();
+
+/**
+ * Redact email for logging: user@example.com → us***@example.com
+ */
+function redactEmail(email: string | undefined): string {
+  if (!email) return '[unknown]';
+  const [local, domain] = email.split('@');
+  if (!domain) return '[invalid]';
+  const visible = local.slice(0, Math.min(2, local.length));
+  return `${visible}***@${domain}`;
+}
 
 export const loginRateLimiter = async (
   req: Request,
@@ -32,28 +59,38 @@ export const loginRateLimiter = async (
   } catch (rejRes: any) {
     const msBeforeNext = rejRes.msBeforeNext || 900000; // default 15 minutes
     const retriesRemaining = rejRes.remainingPoints || 0;
-    
-    // Log suspicious activity
+
+    // Log suspicious activity with redacted email
     logger.warn('Login rate limit exceeded', {
       ip: req.ip,
-      email: req.body.email,
+      email: redactEmail(req.body.email),
       retriesRemaining,
       blockDuration: msBeforeNext / 1000,
     });
 
-    // Track failed attempts
+    // Track failed attempts with size limit
     const attemptKey = `${req.ip}_${req.body.email}`;
     const attempts = (failedAttempts.get(attemptKey) || 0) + 1;
+
+    if (failedAttempts.size >= MAX_FAILED_ATTEMPTS_MAP_SIZE) {
+      // Evict oldest entries (first 20% of map)
+      const entriesToDelete = Math.floor(MAX_FAILED_ATTEMPTS_MAP_SIZE * 0.2);
+      let deleted = 0;
+      for (const key of failedAttempts.keys()) {
+        if (deleted >= entriesToDelete) break;
+        failedAttempts.delete(key);
+        deleted++;
+      }
+    }
     failedAttempts.set(attemptKey, attempts);
 
     // Alert admins if threshold exceeded
     if (attempts > 10) {
       logger.error('Potential brute force attack detected', {
         ip: req.ip,
-        email: req.body.email,
+        email: redactEmail(req.body.email),
         attempts,
       });
-      // TODO: Send email alert to admins
     }
 
     res.set({
@@ -75,11 +112,11 @@ export const loginRateLimiter = async (
 export const resetLoginAttempts = (ip: string, email: string) => {
   const attemptKey = `${ip}_${email?.toLowerCase()}`;
   failedAttempts.delete(attemptKey);
-  
+
   // Also reset rate limiter points
   const ipKey = `login_ip_${ip}`;
   const emailKey = `login_email_${email?.toLowerCase()}`;
-  
+
   loginLimiter.delete(ipKey);
   if (email) {
     loginLimiter.delete(emailKey);
@@ -88,9 +125,5 @@ export const resetLoginAttempts = (ip: string, email: string) => {
 
 // Clean up old entries periodically - export for graceful shutdown cleanup
 export const cleanupInterval = setInterval(() => {
-  // Clear failed attempts older than 1 hour
-  for (const [key, _] of failedAttempts) {
-    // In production, you'd want to track timestamps too
-    failedAttempts.delete(key);
-  }
+  failedAttempts.clear();
 }, 3600000); // Run every hour

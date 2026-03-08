@@ -14,6 +14,7 @@ import { rateLimiter } from './middleware/rateLimiter';
 import { cleanupInterval } from './middleware/loginRateLimiter';
 
 import { logger } from './utils/logger';
+import { disconnectRedis } from './utils/redis';
 import { initMonitoring, metricsHandler, monitoringMiddleware } from './utils/monitoring';
 import { setupSocketHandlers } from './sockets/handlers';
 
@@ -41,11 +42,44 @@ for (const envVar of requiredEnvVars) {
   }
 }
 
+// Production-specific warnings
+if (process.env.NODE_ENV === 'production') {
+  if ((process.env.JWT_SECRET?.length || 0) < 32) {
+    logger.warn('JWT_SECRET should be at least 32 characters for production security');
+  }
+  if (!process.env.CORS_ORIGIN) {
+    logger.warn('CORS_ORIGIN not set - defaulting to localhost. Set it to your production domain');
+  }
+  if (!process.env.REDIS_URL) {
+    logger.warn('REDIS_URL not set - rate limiting will use in-memory store (not suitable for cluster mode)');
+  }
+}
+
+/**
+ * Parse CORS_ORIGIN: supports single origin or comma-separated list.
+ * Returns string for single origin, string[] for multiple.
+ */
+function parseCorsOrigin(): string | string[] {
+  const origin = process.env.CORS_ORIGIN || 'http://localhost:5173';
+  if (origin.includes(',')) {
+    return origin.split(',').map(o => o.trim());
+  }
+  return origin;
+}
+
 const app = express();
+
+// Trust first proxy (Nginx) - required for correct req.ip in rate limiting
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
 const server = createServer(app);
+const corsOrigin = parseCorsOrigin();
+
 const io = new Server(server, {
   cors: {
-    origin: process.env.CORS_ORIGIN || "http://localhost:5173",
+    origin: corsOrigin,
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true
   },
@@ -92,7 +126,7 @@ app.use(helmet({
 
 app.use(compression());
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || "http://localhost:5173",
+  origin: corsOrigin,
   credentials: true,
   optionsSuccessStatus: 200,
 }));
@@ -132,11 +166,10 @@ app.get('/health', async (req, res) => {
     // Check database connection
     await prisma.$queryRaw`SELECT 1`;
     
-    res.json({ 
-      status: 'OK', 
+    res.json({
+      status: 'OK',
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
-      memory: process.memoryUsage(),
       database: 'connected'
     });
   } catch (error) {
@@ -169,7 +202,20 @@ const isMonitoringEnabled = monitoringFlag.toLowerCase() === 'true';
 if (isMonitoringEnabled) {
   initMonitoring();
   app.use(monitoringMiddleware);
-  app.get('/metrics', metricsHandler);
+
+  // Protect metrics endpoint with token auth when METRICS_TOKEN is set
+  const metricsAuth = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const metricsToken = process.env.METRICS_TOKEN;
+    if (metricsToken) {
+      const token = req.headers['authorization']?.replace('Bearer ', '');
+      if (token !== metricsToken) {
+        return res.status(403).json({ success: false, message: 'Forbidden' });
+      }
+    }
+    next();
+  };
+
+  app.get('/metrics', metricsAuth, metricsHandler);
   logger.info('📈 Monitoring enabled at /metrics endpoint');
 }
 
@@ -230,6 +276,10 @@ const gracefulShutdown = async (signal: string) => {
   // Clear periodic cleanup intervals
   clearInterval(cleanupInterval);
 
+  // Close Redis connection
+  await disconnectRedis();
+  logger.info('Redis connection closed');
+
   // Close database connection
   await prisma.$disconnect();
   logger.info('Database connection closed');
@@ -248,5 +298,5 @@ process.on('uncaughtException', (error) => {
 
 process.on('unhandledRejection', (reason, promise) => {
   logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
-  process.exit(1);
+  gracefulShutdown('unhandledRejection');
 });

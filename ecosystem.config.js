@@ -64,19 +64,20 @@ module.exports = {
         url: 'http://localhost:3000/health',
       },
     },
-    {
-      name: 'timetask-worker',
-      script: './server/dist/workers/emailWorker.js',
-      instances: 1,
-      exec_mode: 'fork',
-      env: {
-        NODE_ENV: 'production',
-        WORKER_TYPE: 'email',
-      },
-      max_memory_restart: '500M',
-      autorestart: true,
-      cron_restart: '0 0 * * *', // Restart daily at midnight
-    },
+    // TODO: Email worker - not yet implemented
+    // {
+    //   name: 'timetask-worker',
+    //   script: './server/dist/workers/emailWorker.js',
+    //   instances: 1,
+    //   exec_mode: 'fork',
+    //   env: {
+    //     NODE_ENV: 'production',
+    //     WORKER_TYPE: 'email',
+    //   },
+    //   max_memory_restart: '500M',
+    //   autorestart: true,
+    //   cron_restart: '0 0 * * *',
+    // },
   ],
 
   // Deployment configuration

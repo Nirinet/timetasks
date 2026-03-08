@@ -1,10 +1,32 @@
-import { RateLimiterMemory } from 'rate-limiter-flexible';
+import { RateLimiterRedis, RateLimiterMemory, IRateLimiterOptions } from 'rate-limiter-flexible';
 import { Request, Response, NextFunction } from 'express';
+import { getRedisClient } from '../utils/redis';
+import { logger } from '../utils/logger';
 
-const rateLimiter = new RateLimiterMemory({
-  points: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100'),
-  duration: parseInt(process.env.RATE_LIMIT_WINDOW || '15') * 60, // 15 minutes in seconds
-});
+const points = parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100');
+const duration = parseInt(process.env.RATE_LIMIT_WINDOW || '15') * 60; // 15 minutes in seconds
+
+const baseOptions: IRateLimiterOptions = {
+  points,
+  duration,
+};
+
+// Use Redis when available (required for cluster mode), fallback to Memory for dev
+const redis = getRedisClient();
+let rateLimiter: RateLimiterRedis | RateLimiterMemory;
+
+if (redis) {
+  rateLimiter = new RateLimiterRedis({
+    ...baseOptions,
+    storeClient: redis,
+    keyPrefix: 'rl_general',
+    insuranceLimiter: new RateLimiterMemory(baseOptions), // Fallback if Redis is down
+  });
+  logger.info('Rate limiter using Redis store');
+} else {
+  rateLimiter = new RateLimiterMemory(baseOptions);
+  logger.warn('Rate limiter using in-memory store (not suitable for cluster mode)');
+}
 
 export const rateLimiterMiddleware = async (
   req: Request,

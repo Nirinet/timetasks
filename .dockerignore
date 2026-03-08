@@ -1,0 +1,40 @@
+# Dependencies
+node_modules
+server/node_modules
+client/node_modules
+
+# Version control
+.git
+.gitignore
+
+# Environment files
+*.env
+.env.*
+server/.env
+client/.env
+
+# Build artifacts and logs
+logs
+*.log
+uploads
+backups
+
+# Development tools
+.claude
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose*.yml
+Dockerfile
+.dockerignore
+
+# Documentation
+README.md
+LICENSE

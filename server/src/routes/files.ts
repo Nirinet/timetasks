@@ -8,10 +8,12 @@ import { logger } from '../utils/logger';
 
 const router = express.Router();
 
+const UPLOAD_DIR = process.env.UPLOAD_DIR || './uploads';
+
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadDir = process.env.UPLOAD_DIR || './uploads';
+    const uploadDir = UPLOAD_DIR;
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }
@@ -86,7 +88,7 @@ router.post('/upload', authenticateToken, upload.single('file'), async (req: Aut
         originalName: req.file.originalname,
         mimeType: req.file.mimetype,
         size: req.file.size,
-        path: req.file.path,
+        path: req.file.filename, // Store only filename, not absolute path (portable across environments)
         uploadedById: req.user!.id,
         ...(taskId && { taskId }),
         ...(commentId && { commentId })
@@ -161,14 +163,25 @@ router.get('/download/:id', authenticateToken, async (req: AuthRequest, res, nex
       }
     }
 
-    if (!fs.existsSync(file.path)) {
+    // Reconstruct full path from stored filename with path traversal protection
+    const resolvedUploadDir = path.resolve(UPLOAD_DIR);
+    const fullPath = path.resolve(resolvedUploadDir, path.basename(file.path));
+
+    if (!fullPath.startsWith(resolvedUploadDir)) {
+      return res.status(403).json({
+        success: false,
+        message: 'נתיב קובץ לא חוקי'
+      });
+    }
+
+    if (!fs.existsSync(fullPath)) {
       return res.status(404).json({
         success: false,
         message: 'קובץ לא נמצא במערכת'
       });
     }
 
-    res.download(file.path, file.originalName);
+    res.download(fullPath, file.originalName);
   } catch (error) {
     next(error);
   }
