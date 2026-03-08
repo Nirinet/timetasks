@@ -86,10 +86,9 @@ export const resetLoginAttempts = (ip: string, email: string) => {
   }
 };
 
-// Clean up old entries periodically
-setInterval(() => {
+// Clean up old entries periodically - export for graceful shutdown cleanup
+export const cleanupInterval = setInterval(() => {
   // Clear failed attempts older than 1 hour
-  const oneHourAgo = Date.now() - 3600000;
   for (const [key, _] of failedAttempts) {
     // In production, you'd want to track timestamps too
     failedAttempts.delete(key);

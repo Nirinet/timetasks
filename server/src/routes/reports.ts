@@ -4,11 +4,19 @@ import { authenticateToken, requireAdminOrEmployee, AuthRequest } from '../middl
 
 const router = express.Router();
 
+// Helper to parse pagination params
+function parsePagination(query: any): { take: number; skip: number; page: number; limit: number } {
+  const page = Math.max(1, parseInt(query.page as string) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(query.limit as string) || 20));
+  return { take: limit, skip: (page - 1) * limit, page, limit };
+}
+
 // Hours summary report
 router.get('/hours', authenticateToken, requireAdminOrEmployee, async (req: AuthRequest, res, next) => {
   try {
     const { startDate, endDate, employeeId, projectId } = req.query;
-    
+    const { take, skip, page, limit } = parsePagination(req.query);
+
     let whereClause: any = {
       status: 'COMPLETED'
     };
@@ -26,50 +34,95 @@ router.get('/hours', authenticateToken, requireAdminOrEmployee, async (req: Auth
       };
     }
 
-    const timeRecords = await prisma.timeRecord.findMany({
-      where: whereClause,
-      include: {
-        task: {
-          select: {
-            title: true,
-            project: {
-              select: {
-                name: true,
-                client: {
-                  select: {
-                    name: true
+    // Fetch records with pagination and total count in parallel
+    const [timeRecords, totalCount] = await Promise.all([
+      prisma.timeRecord.findMany({
+        where: whereClause,
+        include: {
+          task: {
+            select: {
+              title: true,
+              project: {
+                select: {
+                  name: true,
+                  client: {
+                    select: {
+                      name: true
+                    }
                   }
                 }
               }
             }
+          },
+          employee: {
+            select: {
+              firstName: true,
+              lastName: true
+            }
           }
         },
-        employee: {
-          select: {
-            firstName: true,
-            lastName: true
-          }
-        }
-      },
-      orderBy: { date: 'desc' }
+        orderBy: { date: 'desc' },
+        take,
+        skip
+      }),
+      prisma.timeRecord.count({ where: whereClause })
+    ]);
+
+    // Use groupBy for aggregate summaries (across all matching records, not just current page)
+    const [byProjectAgg, byEmployeeAgg, totalAgg] = await Promise.all([
+      prisma.timeRecord.groupBy({
+        by: ['taskId'],
+        where: whereClause,
+        _sum: { duration: true }
+      }),
+      prisma.timeRecord.groupBy({
+        by: ['employeeId'],
+        where: whereClause,
+        _sum: { duration: true }
+      }),
+      prisma.timeRecord.aggregate({
+        where: whereClause,
+        _sum: { duration: true }
+      })
+    ]);
+
+    // Resolve project names for groupBy results
+    const taskIds = byProjectAgg.map(r => r.taskId);
+    const tasks = await prisma.task.findMany({
+      where: { id: { in: taskIds } },
+      select: { id: true, project: { select: { name: true } } }
     });
+    const taskProjectMap = new Map(tasks.map(t => [t.id, t.project.name]));
 
-    // Calculate summaries
-    const totalHours = timeRecords.reduce((sum, record) => sum + (record.duration || 0), 0) / 60;
-    
-    const byProject = timeRecords.reduce((acc, record) => {
-      const projectName = record.task.project.name;
-      if (!acc[projectName]) acc[projectName] = 0;
-      acc[projectName] += (record.duration || 0) / 60;
-      return acc;
-    }, {} as Record<string, number>);
+    const byProject: Record<string, number> = {};
+    for (const row of byProjectAgg) {
+      const projectName = taskProjectMap.get(row.taskId) || 'Unknown';
+      byProject[projectName] = (byProject[projectName] || 0) + (row._sum.duration || 0) / 60;
+    }
 
-    const byEmployee = timeRecords.reduce((acc, record) => {
-      const employeeName = `${record.employee.firstName} ${record.employee.lastName}`;
-      if (!acc[employeeName]) acc[employeeName] = 0;
-      acc[employeeName] += (record.duration || 0) / 60;
-      return acc;
-    }, {} as Record<string, number>);
+    // Resolve employee names
+    const employeeIds = byEmployeeAgg.map(r => r.employeeId);
+    const employees = await prisma.user.findMany({
+      where: { id: { in: employeeIds } },
+      select: { id: true, firstName: true, lastName: true }
+    });
+    const employeeNameMap = new Map(employees.map(e => [e.id, `${e.firstName} ${e.lastName}`]));
+
+    const byEmployee: Record<string, number> = {};
+    for (const row of byEmployeeAgg) {
+      const name = employeeNameMap.get(row.employeeId) || 'Unknown';
+      byEmployee[name] = (row._sum.duration || 0) / 60;
+    }
+
+    const totalHours = (totalAgg._sum.duration || 0) / 60;
+
+    // Round values
+    for (const key of Object.keys(byProject)) {
+      byProject[key] = Math.round(byProject[key] * 100) / 100;
+    }
+    for (const key of Object.keys(byEmployee)) {
+      byEmployee[key] = Math.round(byEmployee[key] * 100) / 100;
+    }
 
     res.json({
       success: true,
@@ -79,6 +132,12 @@ router.get('/hours', authenticateToken, requireAdminOrEmployee, async (req: Auth
           totalHours: Math.round(totalHours * 100) / 100,
           byProject,
           byEmployee
+        },
+        pagination: {
+          page,
+          limit,
+          totalCount,
+          totalPages: Math.ceil(totalCount / limit)
         }
       }
     });
@@ -90,26 +149,51 @@ router.get('/hours', authenticateToken, requireAdminOrEmployee, async (req: Auth
 // Project status report
 router.get('/project-status', authenticateToken, requireAdminOrEmployee, async (req: AuthRequest, res, next) => {
   try {
-    const projects = await prisma.project.findMany({
-      include: {
-        client: {
-          select: {
-            name: true
-          }
-        },
-        tasks: {
-          select: {
-            status: true,
-            timeEstimate: true,
-            timeRecords: {
-              select: {
-                duration: true
-              }
+    const { take, skip, page, limit } = parsePagination(req.query);
+    const { status } = req.query;
+
+    let whereClause: any = {};
+    if (status) whereClause.status = status;
+
+    // Fetch projects with pagination
+    const [projects, totalCount] = await Promise.all([
+      prisma.project.findMany({
+        where: whereClause,
+        include: {
+          client: {
+            select: {
+              name: true
+            }
+          },
+          tasks: {
+            select: {
+              id: true,
+              status: true,
+              timeEstimate: true
             }
           }
-        }
-      }
-    });
+        },
+        orderBy: { startDate: 'desc' },
+        take,
+        skip
+      }),
+      prisma.project.count({ where: whereClause })
+    ]);
+
+    // Batch fetch time record durations for all tasks in these projects
+    const allTaskIds = projects.flatMap(p => p.tasks.map(t => t.id));
+    const durationsByTask = allTaskIds.length > 0
+      ? await prisma.timeRecord.groupBy({
+          by: ['taskId'],
+          where: {
+            taskId: { in: allTaskIds },
+            status: 'COMPLETED'
+          },
+          _sum: { duration: true }
+        })
+      : [];
+
+    const durationMap = new Map(durationsByTask.map(d => [d.taskId, d._sum.duration || 0]));
 
     const report = projects.map(project => {
       const totalTasks = project.tasks.length;
@@ -117,11 +201,11 @@ router.get('/project-status', authenticateToken, requireAdminOrEmployee, async (
       const inProgressTasks = project.tasks.filter(t => t.status === 'IN_PROGRESS').length;
       const newTasks = project.tasks.filter(t => t.status === 'NEW').length;
       const waitingTasks = project.tasks.filter(t => t.status === 'WAITING_CLIENT').length;
-      
+
       const estimatedHours = project.tasks.reduce((sum, task) => sum + (task.timeEstimate || 0), 0);
-      const actualHours = project.tasks.reduce((sum, task) => 
-        sum + task.timeRecords.reduce((taskSum, record) => taskSum + (record.duration || 0), 0) / 60, 0);
-      
+      const actualMinutes = project.tasks.reduce((sum, task) => sum + (durationMap.get(task.id) || 0), 0);
+      const actualHours = actualMinutes / 60;
+
       const completionPercentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
       return {
@@ -146,7 +230,15 @@ router.get('/project-status', authenticateToken, requireAdminOrEmployee, async (
 
     res.json({
       success: true,
-      data: { projects: report }
+      data: {
+        projects: report,
+        pagination: {
+          page,
+          limit,
+          totalCount,
+          totalPages: Math.ceil(totalCount / limit)
+        }
+      }
     });
   } catch (error) {
     next(error);
@@ -157,7 +249,7 @@ router.get('/project-status', authenticateToken, requireAdminOrEmployee, async (
 router.get('/employee-performance', authenticateToken, requireAdminOrEmployee, async (req: AuthRequest, res, next) => {
   try {
     const { startDate, endDate } = req.query;
-    
+
     let dateFilter: any = {};
     if (startDate || endDate) {
       dateFilter = {};
@@ -176,13 +268,8 @@ router.get('/employee-performance', authenticateToken, requireAdminOrEmployee, a
             status: 'COMPLETED',
             ...(Object.keys(dateFilter).length > 0 && { date: dateFilter })
           },
-          include: {
-            task: {
-              select: {
-                status: true,
-                deadline: true
-              }
-            }
+          select: {
+            duration: true
           }
         },
         assignedTasks: {
@@ -202,12 +289,12 @@ router.get('/employee-performance', authenticateToken, requireAdminOrEmployee, a
       const totalHours = employee.timeRecords.reduce((sum, record) => sum + (record.duration || 0), 0) / 60;
       const completedTasks = employee.assignedTasks.filter(at => at.task.status === 'COMPLETED').length;
       const totalTasks = employee.assignedTasks.length;
-      const onTimeTasks = employee.assignedTasks.filter(at => 
-        at.task.status === 'COMPLETED' && 
-        at.task.deadline && 
+      const onTimeTasks = employee.assignedTasks.filter(at =>
+        at.task.status === 'COMPLETED' &&
+        at.task.deadline &&
         new Date(at.task.deadline) >= new Date()
       ).length;
-      
+
       const onTimePercentage = completedTasks > 0 ? Math.round((onTimeTasks / completedTasks) * 100) : 0;
       const completionPercentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 

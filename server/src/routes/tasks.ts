@@ -2,26 +2,28 @@ import express from 'express';
 import Joi from 'joi';
 import { prisma } from '../index';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
-import { TaskStatus, ProjectStatus } from '@prisma/client';
-import { logger } from '../utils/logger';
+import { TaskService } from '../services/TaskService';
+import {
+  TASK_INCLUDE_LIST,
+  TASK_INCLUDE_MUTATION,
+  USER_SELECT_BASIC,
+  USER_SELECT_WITH_ROLE,
+  COMMENT_INCLUDE_WITH_FILES,
+  applyClientTaskFilter
+} from '../utils/querySelects';
 
 const router = express.Router();
+const taskService = new TaskService(prisma);
 
 // Get tasks with filtering
 router.get('/', authenticateToken, async (req: AuthRequest, res, next) => {
   try {
     const { projectId, status, priority, assignedTo } = req.query;
-    
+
     let whereClause: any = {};
 
-    // Filter for client users
-    if (req.user!.role === 'CLIENT') {
-      whereClause.assignedUsers = {
-        some: {
-          clientId: req.user!.id
-        }
-      };
-    }
+    // Apply client filter
+    applyClientTaskFilter(whereClause, req.user!.id, req.user!.role);
 
     if (projectId) whereClause.projectId = projectId;
     if (status) whereClause.status = status;
@@ -36,39 +38,7 @@ router.get('/', authenticateToken, async (req: AuthRequest, res, next) => {
 
     const tasks = await prisma.task.findMany({
       where: whereClause,
-      include: {
-        project: {
-          select: {
-            name: true,
-            client: {
-              select: { name: true }
-            }
-          }
-        },
-        assignedUsers: {
-          include: {
-            user: {
-              select: {
-                firstName: true,
-                lastName: true,
-                role: true
-              }
-            },
-            client: {
-              select: {
-                name: true
-              }
-            }
-          }
-        },
-        _count: {
-          select: {
-            subtasks: true,
-            comments: true,
-            timeRecords: true
-          }
-        }
-      },
+      include: TASK_INCLUDE_LIST,
       orderBy: {
         creationDate: 'desc'
       }
@@ -87,8 +57,8 @@ router.get('/', authenticateToken, async (req: AuthRequest, res, next) => {
 router.post('/', authenticateToken, async (req: AuthRequest, res, next) => {
   try {
     const schema = Joi.object({
-      title: Joi.string().min(2).required(),
-      description: Joi.string().optional(),
+      title: Joi.string().min(2).max(500).required(),
+      description: Joi.string().max(50000).optional(),
       projectId: Joi.string().uuid().required(),
       priority: Joi.string().valid('URGENT_IMPORTANT', 'IMPORTANT', 'NORMAL', 'LOW').default('NORMAL'),
       deadline: Joi.date().optional(),
@@ -108,18 +78,9 @@ router.post('/', authenticateToken, async (req: AuthRequest, res, next) => {
 
     const { assignedUserIds = [], assignedClientIds = [], ...taskData } = req.body;
 
-    // Check permissions
+    // Check permissions - clients can only create tasks in projects they're assigned to
     if (req.user!.role === 'CLIENT') {
-      // Clients can only create tasks in projects they're assigned to
-      const hasAccess = await prisma.taskAssignment.findFirst({
-        where: {
-          clientId: req.user!.id,
-          task: {
-            projectId: taskData.projectId
-          }
-        }
-      });
-
+      const hasAccess = await taskService.verifyProjectAccess(req.user!.id, taskData.projectId, req.user!.role);
       if (!hasAccess) {
         return res.status(403).json({
           success: false,
@@ -147,29 +108,10 @@ router.post('/', authenticateToken, async (req: AuthRequest, res, next) => {
               }
             : undefined
       },
-      include: {
-        project: {
-          select: { name: true }
-        },
-        assignedUsers: {
-          include: {
-            user: {
-              select: {
-                firstName: true,
-                lastName: true
-              }
-            },
-            client: {
-              select: {
-                name: true
-              }
-            }
-          }
-        }
-      }
+      include: TASK_INCLUDE_MUTATION
     });
 
-    await handleTaskAutomation(task.id);
+    await taskService.handleAutomation(task.id);
 
     res.status(201).json({
       success: true,
@@ -186,13 +128,7 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
   try {
     let whereClause: any = { id: req.params.id };
 
-    if (req.user!.role === 'CLIENT') {
-      whereClause.assignedUsers = {
-        some: {
-          clientId: req.user!.id
-        }
-      };
-    }
+    applyClientTaskFilter(whereClause, req.user!.id, req.user!.role);
 
     const task = await prisma.task.findFirst({
       where: whereClause,
@@ -208,16 +144,10 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
         assignedUsers: {
           include: {
             user: {
-              select: {
-                firstName: true,
-                lastName: true,
-                role: true
-              }
+              select: USER_SELECT_WITH_ROLE
             },
             client: {
-              select: {
-                name: true
-              }
+              select: { name: true }
             }
           }
         },
@@ -238,34 +168,19 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
         timeRecords: {
           include: {
             employee: {
-              select: {
-                firstName: true,
-                lastName: true
-              }
+              select: USER_SELECT_BASIC
             }
           },
           orderBy: { startTime: 'desc' }
         },
         comments: {
-          include: {
-            author: {
-              select: {
-                firstName: true,
-                lastName: true,
-                role: true
-              }
-            },
-            files: true
-          },
+          include: COMMENT_INCLUDE_WITH_FILES,
           orderBy: { createdAt: 'desc' }
         },
         files: {
           include: {
             uploadedBy: {
-              select: {
-                firstName: true,
-                lastName: true
-              }
+              select: USER_SELECT_BASIC
             }
           }
         }
@@ -292,8 +207,8 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
 router.put('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
   try {
     const schema = Joi.object({
-      title: Joi.string().min(2).optional(),
-      description: Joi.string().optional(),
+      title: Joi.string().min(2).max(500).optional(),
+      description: Joi.string().max(50000).optional(),
       priority: Joi.string().valid('URGENT_IMPORTANT', 'IMPORTANT', 'NORMAL', 'LOW').optional(),
       status: Joi.string().valid('NEW', 'IN_PROGRESS', 'WAITING_CLIENT', 'COMPLETED').optional(),
       deadline: Joi.date().optional(),
@@ -310,13 +225,7 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
 
     // Get current task to check permissions
     let whereClause: any = { id: req.params.id };
-    if (req.user!.role === 'CLIENT') {
-      whereClause.assignedUsers = {
-        some: {
-          clientId: req.user!.id
-        }
-      };
-    }
+    applyClientTaskFilter(whereClause, req.user!.id, req.user!.role);
 
     const existingTask = await prisma.task.findFirst({ where: whereClause });
     if (!existingTask) {
@@ -329,29 +238,10 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
     const task = await prisma.task.update({
       where: { id: req.params.id },
       data: req.body,
-      include: {
-        project: {
-          select: { name: true }
-        },
-        assignedUsers: {
-          include: {
-            user: {
-              select: {
-                firstName: true,
-                lastName: true
-              }
-            },
-            client: {
-              select: {
-                name: true
-              }
-            }
-          }
-        }
-      }
+      include: TASK_INCLUDE_MUTATION
     });
 
-    await handleTaskAutomation(task.id);
+    await taskService.handleAutomation(task.id);
 
     res.json({
       success: true,
@@ -364,103 +254,3 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
 });
 
 export default router;
-
-async function handleTaskAutomation(taskId: string, visited: Set<string> = new Set()): Promise<void> {
-  if (visited.has(taskId)) {
-    return;
-  }
-
-  visited.add(taskId);
-
-  try {
-    const task = await prisma.task.findUnique({
-      where: { id: taskId },
-      select: {
-        id: true,
-        status: true,
-        parentTaskId: true,
-        projectId: true
-      }
-    });
-
-    if (!task) {
-      return;
-    }
-
-    const [subtaskCount, incompleteSubtasks] = await Promise.all([
-      prisma.task.count({ where: { parentTaskId: task.id } }),
-      prisma.task.count({
-        where: {
-          parentTaskId: task.id,
-          status: { not: TaskStatus.COMPLETED }
-        }
-      })
-    ]);
-
-    if (subtaskCount > 0) {
-      if (incompleteSubtasks === 0 && task.status !== TaskStatus.COMPLETED) {
-        await prisma.task.update({
-          where: { id: task.id },
-          data: { status: TaskStatus.COMPLETED }
-        });
-        task.status = TaskStatus.COMPLETED;
-      } else if (incompleteSubtasks > 0 && task.status === TaskStatus.COMPLETED) {
-        await prisma.task.update({
-          where: { id: task.id },
-          data: { status: TaskStatus.IN_PROGRESS }
-        });
-        task.status = TaskStatus.IN_PROGRESS;
-      }
-    }
-
-    if (task.parentTaskId) {
-      const incompleteSiblings = await prisma.task.count({
-        where: {
-          parentTaskId: task.parentTaskId,
-          status: { not: TaskStatus.COMPLETED }
-        }
-      });
-
-      if (incompleteSiblings === 0) {
-        await prisma.task.update({
-          where: { id: task.parentTaskId },
-          data: { status: TaskStatus.COMPLETED }
-        });
-      } else {
-        await prisma.task.updateMany({
-          where: {
-            id: task.parentTaskId,
-            status: TaskStatus.COMPLETED
-          },
-          data: { status: TaskStatus.IN_PROGRESS }
-        });
-      }
-
-      await handleTaskAutomation(task.parentTaskId, visited);
-    }
-
-    const incompleteProjectTasks = await prisma.task.count({
-      where: {
-        projectId: task.projectId,
-        status: { not: TaskStatus.COMPLETED }
-      }
-    });
-
-    if (incompleteProjectTasks === 0) {
-      await prisma.project.update({
-        where: { id: task.projectId },
-        data: { status: ProjectStatus.COMPLETED }
-      });
-    } else {
-      await prisma.project.updateMany({
-        where: {
-          id: task.projectId,
-          status: ProjectStatus.COMPLETED
-        },
-        data: { status: ProjectStatus.ACTIVE }
-      });
-    }
-  } catch (error) {
-    logger.error('Task automation failed', { taskId, error });
-  }
-}

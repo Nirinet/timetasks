@@ -9,7 +9,7 @@ const router = express.Router();
 router.post('/', authenticateToken, async (req: AuthRequest, res, next) => {
   try {
     const schema = Joi.object({
-      content: Joi.string().min(1).required(),
+      content: Joi.string().min(1).max(10000).required(),
       taskId: Joi.string().uuid().optional(),
       projectId: Joi.string().uuid().optional()
     }).xor('taskId', 'projectId');

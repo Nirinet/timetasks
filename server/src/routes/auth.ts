@@ -176,11 +176,11 @@ router.post('/register', async (req, res, next) => {
 
     const { email, password, firstName, lastName, phone } = req.body;
 
-    // Check if any users exist
-    const userCount = await prisma.user.count();
-    
+    // Check if any users exist (outside transaction for auth check)
+    const initialCount = await prisma.user.count();
+
     // If users exist, require admin authentication
-    if (userCount > 0) {
+    if (initialCount > 0) {
       // Apply authentication middleware
       const authMiddleware = authenticateToken as any;
       await new Promise((resolve, reject) => {
@@ -200,49 +200,51 @@ router.post('/register', async (req, res, next) => {
       }
     }
 
-    // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email: email.toLowerCase() }
-    });
-
-    if (existingUser) {
-      return res.status(409).json({
-        success: false,
-        message: 'משתמש עם כתובת דוא"ל זו כבר קיים'
-      });
-    }
-
-    // Hash password
+    // Hash password before transaction to keep it short
     const hashedPassword = await bcrypt.hash(password, parseInt(process.env.BCRYPT_ROUNDS || '12'));
 
-    // First user is admin, rest are employees by default
-    const role = userCount === 0 ? 'ADMIN' : 'EMPLOYEE';
+    // Use transaction to prevent race conditions (e.g. two first-users both becoming ADMIN)
+    const user = await prisma.$transaction(async (tx) => {
+      const userCount = await tx.user.count();
 
-    const user = await prisma.user.create({
-      data: {
-        email: email.toLowerCase(),
-        password: hashedPassword,
-        firstName,
-        lastName,
-        phone,
-        role
-      },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        role: true,
-        phone: true,
-        joinDate: true
+      // Check if user already exists
+      const existingUser = await tx.user.findUnique({
+        where: { email: email.toLowerCase() }
+      });
+
+      if (existingUser) {
+        throw Object.assign(new Error('משתמש עם כתובת דוא"ל זו כבר קיים'), { statusCode: 409 });
       }
+
+      // First user is admin, rest are employees by default
+      const role = userCount === 0 ? 'ADMIN' : 'EMPLOYEE';
+
+      return tx.user.create({
+        data: {
+          email: email.toLowerCase(),
+          password: hashedPassword,
+          firstName,
+          lastName,
+          phone,
+          role
+        },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          phone: true,
+          joinDate: true
+        }
+      });
     });
 
-    logger.info('New user registered', { 
+    logger.info('New user registered', {
       userId: user.id,
       email: user.email,
-      role,
-      registeredBy: userCount > 0 ? (req as AuthRequest).user?.id : 'system'
+      role: user.role,
+      registeredBy: initialCount > 0 ? (req as AuthRequest).user?.id : 'system'
     });
 
     res.status(201).json({

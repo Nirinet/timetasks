@@ -3,57 +3,49 @@ import Joi from 'joi';
 import { prisma } from '../index';
 import { authenticateToken, requireAdminOrEmployee, AuthRequest } from '../middleware/auth';
 import { ProjectStatus } from '@prisma/client';
+import {
+  PROJECT_INCLUDE_LIST,
+  PROJECT_INCLUDE_MUTATION,
+  USER_SELECT_WITH_ROLE,
+  applyClientProjectFilter,
+  parsePagination,
+  paginationResponse
+} from '../utils/querySelects';
 
 const router = express.Router();
 
-// Get all projects
+// Get all projects (with optional pagination)
 router.get('/', authenticateToken, async (req: AuthRequest, res, next) => {
   try {
     let whereClause: any = {};
 
     // Filter for client users - only their projects
-    if (req.user!.role === 'CLIENT') {
-      whereClause = {
-        tasks: {
-          some: {
-            assignedUsers: {
-              some: {
-                clientId: req.user!.id
-              }
-            }
-          }
-        }
-      };
+    applyClientProjectFilter(whereClause, req.user!.id, req.user!.role);
+
+    // Optional status filter
+    if (req.query.status) {
+      whereClause.status = req.query.status;
     }
 
-    const projects = await prisma.project.findMany({
-      where: whereClause,
-      include: {
-        client: {
-          select: {
-            id: true,
-            name: true,
-            contactPerson: true
-          }
-        },
-        createdBy: {
-          select: {
-            firstName: true,
-            lastName: true
-          }
-        },
-        _count: {
-          select: {
-            tasks: true
-          }
-        }
-      },
-      orderBy: { startDate: 'desc' }
-    });
+    const { take, skip, page, limit } = parsePagination(req.query, 50);
+
+    const [projects, totalCount] = await Promise.all([
+      prisma.project.findMany({
+        where: whereClause,
+        include: PROJECT_INCLUDE_LIST,
+        orderBy: { startDate: 'desc' },
+        take,
+        skip
+      }),
+      prisma.project.count({ where: whereClause })
+    ]);
 
     res.json({
       success: true,
-      data: { projects }
+      data: {
+        projects,
+        pagination: paginationResponse(page, limit, totalCount)
+      }
     });
   } catch (error) {
     next(error);
@@ -98,20 +90,7 @@ router.post('/', authenticateToken, requireAdminOrEmployee, async (req: AuthRequ
         ...req.body,
         createdById: req.user!.id
       },
-      include: {
-        client: {
-          select: {
-            name: true,
-            contactPerson: true
-          }
-        },
-        createdBy: {
-          select: {
-            firstName: true,
-            lastName: true
-          }
-        }
-      }
+      include: PROJECT_INCLUDE_MUTATION
     });
 
     res.status(201).json({
@@ -130,17 +109,7 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
     let whereClause: any = { id: req.params.id };
 
     // Check permissions for client users
-    if (req.user!.role === 'CLIENT') {
-      whereClause.tasks = {
-        some: {
-          assignedUsers: {
-            some: {
-              clientId: req.user!.id
-            }
-          }
-        }
-      };
-    }
+    applyClientProjectFilter(whereClause, req.user!.id, req.user!.role);
 
     const project = await prisma.project.findFirst({
       where: whereClause,
@@ -239,20 +208,7 @@ router.put('/:id', authenticateToken, requireAdminOrEmployee, async (req: AuthRe
     const project = await prisma.project.update({
       where: { id: req.params.id },
       data: req.body,
-      include: {
-        client: {
-          select: {
-            name: true,
-            contactPerson: true
-          }
-        },
-        createdBy: {
-          select: {
-            firstName: true,
-            lastName: true
-          }
-        }
-      }
+      include: PROJECT_INCLUDE_MUTATION
     });
 
     res.json({

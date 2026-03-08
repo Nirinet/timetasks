@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { Prisma } from '@prisma/client';
 import { logger } from '../utils/logger';
 
 export interface CustomError extends Error {
@@ -8,7 +9,7 @@ export interface CustomError extends Error {
 }
 
 export const errorHandler = (
-  error: CustomError,
+  error: CustomError & { code?: string },
   req: Request,
   res: Response,
   next: NextFunction
@@ -25,16 +26,32 @@ export const errorHandler = (
     userAgent: req.get('User-Agent')
   });
 
-  // Prisma errors
-  if (error.message?.includes('P2002')) {
-    statusCode = 409;
-    message = 'נתונים כפולים - הרשומה כבר קיימת במערכת';
-  } else if (error.message?.includes('P2025')) {
-    statusCode = 404;
-    message = 'הרשומה לא נמצאה';
-  } else if (error.message?.includes('P2003')) {
+  // Prisma errors - use proper error codes instead of string matching
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    switch (error.code) {
+      case 'P2002':
+        statusCode = 409;
+        message = 'נתונים כפולים - הרשומה כבר קיימת במערכת';
+        break;
+      case 'P2025':
+        statusCode = 404;
+        message = 'הרשומה לא נמצאה';
+        break;
+      case 'P2003':
+        statusCode = 400;
+        message = 'נתונים לא תקינים - קיימת תלות בנתונים אחרים';
+        break;
+      case 'P2014':
+        statusCode = 400;
+        message = 'הפעולה מפרה אילוץ בבסיס הנתונים';
+        break;
+      default:
+        statusCode = 500;
+        message = 'שגיאה בבסיס הנתונים';
+    }
+  } else if (error instanceof Prisma.PrismaClientValidationError) {
     statusCode = 400;
-    message = 'נתונים לא תקינים - קיימת תלות בנתונים אחרים';
+    message = 'נתונים לא תקינים';
   }
 
   // JWT errors
@@ -46,10 +63,20 @@ export const errorHandler = (
     message = 'אסימון הגישה פג תוקף';
   }
 
-  // Validation errors
+  // Validation errors (Joi)
   if (error.name === 'ValidationError') {
     statusCode = 400;
     message = 'נתונים לא תקינים';
+  }
+
+  // Multer file upload errors
+  if (error.name === 'MulterError') {
+    statusCode = 400;
+    if (error.message === 'File too large') {
+      message = 'הקובץ גדול מדי';
+    } else {
+      message = 'שגיאה בהעלאת הקובץ';
+    }
   }
 
   // Send error response
@@ -58,7 +85,7 @@ export const errorHandler = (
     message,
     ...(process.env.NODE_ENV === 'development' && {
       stack: error.stack,
-      error: error
+      errorCode: (error as any).code
     })
   });
 };

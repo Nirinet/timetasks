@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { prisma } from '../index';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { logger } from '../utils/logger';
 
 const router = express.Router();
 
@@ -22,20 +23,41 @@ const storage = multer.diskStorage({
   }
 });
 
-const upload = multer({ 
+// MIME type validation map - extension must match actual content type
+const ALLOWED_MIME_TYPES: Record<string, string[]> = {
+  'jpg': ['image/jpeg'],
+  'jpeg': ['image/jpeg'],
+  'png': ['image/png'],
+  'gif': ['image/gif'],
+  'pdf': ['application/pdf'],
+  'doc': ['application/msword'],
+  'docx': ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+  'xls': ['application/vnd.ms-excel'],
+  'xlsx': ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+  'txt': ['text/plain'],
+};
+
+const upload = multer({
   storage,
   limits: {
     fileSize: parseInt(process.env.MAX_FILE_SIZE || '52428800') // 50MB
   },
   fileFilter: (req, file, cb) => {
-    const allowedTypes = (process.env.ALLOWED_FILE_TYPES || 'jpg,jpeg,png,gif,pdf,doc,docx,xls,xlsx,txt,zip,rar').split(',');
+    const allowedTypes = (process.env.ALLOWED_FILE_TYPES || 'jpg,jpeg,png,gif,pdf,doc,docx,xls,xlsx,txt').split(',');
     const fileExt = path.extname(file.originalname).toLowerCase().slice(1);
-    
-    if (allowedTypes.includes(fileExt)) {
-      cb(null, true);
-    } else {
-      cb(new Error(`סוג קובץ לא מותר: ${fileExt}`));
+
+    if (!allowedTypes.includes(fileExt)) {
+      return cb(new Error(`סוג קובץ לא מותר: ${fileExt}`));
     }
+
+    // Validate MIME type matches extension
+    const expectedMimes = ALLOWED_MIME_TYPES[fileExt];
+    if (expectedMimes && !expectedMimes.includes(file.mimetype)) {
+      logger.warn('MIME type mismatch on upload', { fileExt, mimetype: file.mimetype, originalname: file.originalname });
+      return cb(new Error(`סוג קובץ לא תואם: ${fileExt} עם ${file.mimetype}`));
+    }
+
+    cb(null, true);
   }
 });
 
@@ -89,11 +111,34 @@ router.post('/upload', authenticateToken, upload.single('file'), async (req: Aut
   }
 });
 
-// Download file
+// Download file (with authorization check)
 router.get('/download/:id', authenticateToken, async (req: AuthRequest, res, next) => {
   try {
     const file = await prisma.fileAttachment.findUnique({
-      where: { id: req.params.id }
+      where: { id: req.params.id },
+      include: {
+        task: {
+          select: {
+            projectId: true,
+            assignedUsers: {
+              select: { userId: true, clientId: true }
+            }
+          }
+        },
+        comment: {
+          select: {
+            taskId: true,
+            projectId: true,
+            task: {
+              select: {
+                assignedUsers: {
+                  select: { userId: true, clientId: true }
+                }
+              }
+            }
+          }
+        }
+      }
     });
 
     if (!file) {
@@ -101,6 +146,19 @@ router.get('/download/:id', authenticateToken, async (req: AuthRequest, res, nex
         success: false,
         message: 'קובץ לא נמצא'
       });
+    }
+
+    // Authorization check for CLIENT users
+    if (req.user!.role === 'CLIENT') {
+      const assignedUsers = file.task?.assignedUsers || file.comment?.task?.assignedUsers || [];
+      const hasAccess = assignedUsers.some(au => au.clientId === req.user!.id);
+
+      if (!hasAccess) {
+        return res.status(403).json({
+          success: false,
+          message: 'אין הרשאה להוריד קובץ זה'
+        });
+      }
     }
 
     if (!fs.existsSync(file.path)) {
