@@ -12,6 +12,9 @@ RUN npm ci
 # Copy client source code
 COPY client/ .
 
+# Set API URL for production build (relative URL since client is served by the same server)
+ENV VITE_API_BASE_URL=/api
+
 # Build client
 RUN npm run build
 
