@@ -33,7 +33,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
   const connectSocket = useCallback(() => {
     if (!user) return null
 
-    const SOCKET_URL = (import.meta as any).env.VITE_SOCKET_URL || 'http://localhost:3000'
+    const SOCKET_URL = (import.meta as any).env.VITE_SOCKET_URL || ''
     const token = localStorage.getItem('accessToken')
 
     if (!token) {
