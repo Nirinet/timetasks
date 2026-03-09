@@ -127,6 +127,85 @@ export class TaskService {
   }
 
   /**
+   * Record changes to TaskChangeHistory for audit trail.
+   * Compares old and new values and creates a record for each changed field.
+   */
+  async recordChanges(
+    taskId: string,
+    changedBy: string,
+    action: string,
+    oldData: Record<string, any> | null,
+    newData: Record<string, any>
+  ): Promise<void> {
+    try {
+      const fieldsToTrack = ['title', 'description', 'status', 'priority', 'deadline', 'timeEstimate'];
+
+      if (action === 'CREATE') {
+        await this.prisma.taskChangeHistory.create({
+          data: {
+            taskId,
+            changedBy,
+            action: 'CREATE',
+            field: 'task',
+            oldValue: null,
+            newValue: newData.title || 'משימה חדשה'
+          }
+        });
+        return;
+      }
+
+      if (action === 'DELETE') {
+        await this.prisma.taskChangeHistory.create({
+          data: {
+            taskId,
+            changedBy,
+            action: 'DELETE',
+            field: 'task',
+            oldValue: oldData?.title || '',
+            newValue: null
+          }
+        });
+        return;
+      }
+
+      // UPDATE: compare fields
+      if (!oldData) return;
+
+      const changes: { field: string; oldValue: string | null; newValue: string | null }[] = [];
+
+      for (const field of fieldsToTrack) {
+        if (field in newData && newData[field] !== undefined) {
+          const oldVal = oldData[field];
+          const newVal = newData[field];
+
+          if (String(oldVal || '') !== String(newVal || '')) {
+            changes.push({
+              field,
+              oldValue: oldVal != null ? String(oldVal) : null,
+              newValue: newVal != null ? String(newVal) : null
+            });
+          }
+        }
+      }
+
+      if (changes.length > 0) {
+        await this.prisma.taskChangeHistory.createMany({
+          data: changes.map(c => ({
+            taskId,
+            changedBy,
+            action: 'UPDATE',
+            field: c.field,
+            oldValue: c.oldValue,
+            newValue: c.newValue
+          }))
+        });
+      }
+    } catch (error) {
+      logger.error('Failed to record task changes', { taskId, action, error });
+    }
+  }
+
+  /**
    * Verify that a user (by role) has access to a specific project.
    * ADMIN and EMPLOYEE have access to all projects.
    * CLIENT users only have access if they have assigned tasks in the project.

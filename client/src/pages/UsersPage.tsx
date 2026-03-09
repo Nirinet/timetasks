@@ -24,6 +24,7 @@ import {
   Tooltip,
 } from '@mui/material'
 import EditIcon from '@mui/icons-material/Edit'
+import DeleteIcon from '@mui/icons-material/Delete'
 import toast from 'react-hot-toast'
 
 import api from '@/services/api'
@@ -31,6 +32,7 @@ import { User, UserRole } from '@/types'
 import { getRoleLabel, formatDate } from '@/utils/formatters'
 import PageHeader from '@/components/PageHeader'
 import EmptyState from '@/components/EmptyState'
+import ConfirmDialog from '@/components/ConfirmDialog'
 
 interface UserFormData {
   email: string
@@ -60,6 +62,8 @@ const UsersPage: React.FC = () => {
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [form, setForm] = useState<UserFormData>(emptyForm)
   const [saving, setSaving] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [userToDelete, setUserToDelete] = useState<User | null>(null)
 
   const fetchUsers = async () => {
     try {
@@ -97,6 +101,25 @@ const UsersPage: React.FC = () => {
       isActive: user.isActive,
     })
     setDialogOpen(true)
+  }
+
+  const handleDelete = (user: User) => {
+    setUserToDelete(user)
+    setDeleteDialogOpen(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!userToDelete) return
+    try {
+      await api.delete(`/users/${userToDelete.id}`)
+      toast.success('המשתמש הושבת בהצלחה')
+      fetchUsers()
+    } catch {
+      // error toast handled by api interceptor
+    } finally {
+      setDeleteDialogOpen(false)
+      setUserToDelete(null)
+    }
   }
 
   const handleClose = () => {
@@ -211,6 +234,18 @@ const UsersPage: React.FC = () => {
                             <EditIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
+                        <Tooltip title="השבתה">
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDelete(user)
+                            }}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -300,6 +335,17 @@ const UsersPage: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Delete Confirmation */}
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        title="השבתת משתמש"
+        message={`האם להשבית את המשתמש ${userToDelete?.firstName} ${userToDelete?.lastName}? המשתמש לא יוכל להתחבר למערכת.`}
+        confirmText="השבת"
+        confirmColor="error"
+        onConfirm={confirmDelete}
+        onCancel={() => { setDeleteDialogOpen(false); setUserToDelete(null) }}
+      />
     </Box>
   )
 }

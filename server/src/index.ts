@@ -17,6 +17,8 @@ import { logger } from './utils/logger';
 import { disconnectRedis } from './utils/redis';
 import { initMonitoring, metricsHandler, monitoringMiddleware } from './utils/monitoring';
 import { setupSocketHandlers } from './sockets/handlers';
+import { EmailService } from './services/EmailService';
+import { SchedulerService } from './services/SchedulerService';
 
 // Import routes
 import authRoutes from './routes/auth';
@@ -29,6 +31,8 @@ import commentRoutes from './routes/comments';
 import fileRoutes from './routes/files';
 import alertRoutes from './routes/alerts';
 import reportRoutes from './routes/reports';
+import settingsRoutes from './routes/settings';
+import searchRoutes from './routes/search';
 
 // Load environment variables
 dotenv.config();
@@ -192,6 +196,8 @@ app.use('/api/comments', commentRoutes);
 app.use('/api/files', fileRoutes);
 app.use('/api/alerts', alertRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/settings', settingsRoutes);
+app.use('/api/search', searchRoutes);
 
 // Note: uploads are served through /api/files/download/:id with auth check
 // Do NOT serve uploads directory statically - it bypasses authorization
@@ -237,6 +243,11 @@ if (shouldServeClient && existsSync(clientBuildPath)) {
 // Socket.IO setup - handlers extracted to sockets/handlers.ts
 setupSocketHandlers(io, prisma);
 
+// Initialize services
+export const emailService = new EmailService();
+const schedulerService = new SchedulerService(prisma, emailService);
+schedulerService.start();
+
 // Make io available globally
 export { io };
 
@@ -272,6 +283,9 @@ const gracefulShutdown = async (signal: string) => {
   io.close(() => {
     logger.info('Socket.IO server closed');
   });
+
+  // Stop scheduler
+  schedulerService.stop();
 
   // Clear periodic cleanup intervals
   clearInterval(cleanupInterval);

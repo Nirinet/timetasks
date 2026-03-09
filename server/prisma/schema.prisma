@@ -66,6 +66,10 @@ model User {
   joinDate  DateTime @default(now())
   lastLogin DateTime?
 
+  // Password reset
+  resetToken        String?
+  resetTokenExpiry  DateTime?
+
   // User preferences
   emailNotifications Boolean @default(true)
   timerAlerts       Boolean @default(true)

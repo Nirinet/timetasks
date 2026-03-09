@@ -35,11 +35,14 @@ router.get('/', authenticateToken, async (req: AuthRequest, res, next) => {
     if (req.user!.role === 'EMPLOYEE') {
       whereClause.employeeId = req.user!.id;
     } else if (req.user!.role === 'CLIENT') {
-      // Clients can't access time records directly
-      return res.status(403).json({
-        success: false,
-        message: 'אין הרשאה לצפות ברישומי זמן'
-      });
+      // Clients can see time records for tasks assigned to them (read-only)
+      whereClause.task = {
+        assignedUsers: {
+          some: {
+            clientId: req.user!.id
+          }
+        }
+      };
     }
     
     if (taskId) whereClause.taskId = taskId;

@@ -22,20 +22,27 @@ import {
   TableHead,
   TableRow,
   Divider,
+  Tabs,
+  Tab,
+  Avatar,
+  IconButton,
 } from '@mui/material'
 import { DatePicker } from '@mui/x-date-pickers/DatePicker'
 import FolderOpenIcon from '@mui/icons-material/FolderOpen'
+import DeleteIcon from '@mui/icons-material/Delete'
+import SendIcon from '@mui/icons-material/Send'
 import toast from 'react-hot-toast'
 
 import api from '@/services/api'
 import { useAuth } from '@/contexts/AuthContext'
-import { Project, Client, ProjectStatus, Task } from '@/types'
+import { Project, Client, ProjectStatus, Task, Comment } from '@/types'
 import { formatDate } from '@/utils/formatters'
 import ProjectStatusChip from '@/components/ProjectStatusChip'
 import StatusChip from '@/components/StatusChip'
 import PriorityChip from '@/components/PriorityChip'
 import PageHeader from '@/components/PageHeader'
 import EmptyState from '@/components/EmptyState'
+import ConfirmDialog from '@/components/ConfirmDialog'
 
 interface ProjectFormData {
   name: string
@@ -72,6 +79,11 @@ const ProjectsPage: React.FC = () => {
   const [detailProject, setDetailProject] = useState<Project | null>(null)
   const [form, setForm] = useState<ProjectFormData>(emptyForm)
   const [saving, setSaving] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [projectToDelete, setProjectToDelete] = useState<Project | null>(null)
+  const [detailTab, setDetailTab] = useState(0)
+  const [newComment, setNewComment] = useState('')
+  const [sendingComment, setSendingComment] = useState(false)
 
   const fetchProjects = async () => {
     try {
@@ -128,9 +140,50 @@ const ProjectsPage: React.FC = () => {
     try {
       const response = await api.get(`/projects/${project.id}`)
       setDetailProject(response.data.data?.project || response.data.data)
+      setDetailTab(0)
+      setNewComment('')
       setDetailDialogOpen(true)
     } catch {
       // error toast handled by api interceptor
+    }
+  }
+
+  const handleSendComment = async () => {
+    if (!newComment.trim() || !detailProject) return
+    setSendingComment(true)
+    try {
+      await api.post('/comments', {
+        content: newComment.trim(),
+        projectId: detailProject.id,
+      })
+      setNewComment('')
+      // Refresh project details to show new comment
+      const response = await api.get(`/projects/${detailProject.id}`)
+      setDetailProject(response.data.data?.project || response.data.data)
+      toast.success('תגובה נוספה בהצלחה')
+    } catch {
+      // error toast handled by api interceptor
+    } finally {
+      setSendingComment(false)
+    }
+  }
+
+  const handleDelete = (project: Project) => {
+    setProjectToDelete(project)
+    setDeleteDialogOpen(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!projectToDelete) return
+    try {
+      await api.delete(`/projects/${projectToDelete.id}`)
+      toast.success('הפרויקט נמחק בהצלחה')
+      fetchProjects()
+    } catch {
+      // error toast handled by api interceptor
+    } finally {
+      setDeleteDialogOpen(false)
+      setProjectToDelete(null)
     }
   }
 
@@ -265,7 +318,7 @@ const ProjectsPage: React.FC = () => {
                   </Box>
                 </CardContent>
                 {!isClient && (
-                  <CardActions>
+                  <CardActions sx={{ justifyContent: 'space-between' }}>
                     <Button
                       size="small"
                       onClick={(e) => {
@@ -274,6 +327,17 @@ const ProjectsPage: React.FC = () => {
                       }}
                     >
                       עריכה
+                    </Button>
+                    <Button
+                      size="small"
+                      color="error"
+                      startIcon={<DeleteIcon />}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDelete(project)
+                      }}
+                    >
+                      מחיקה
                     </Button>
                   </CardActions>
                 )}
@@ -406,37 +470,117 @@ const ProjectsPage: React.FC = () => {
                 )}
               </Box>
 
-              <Divider sx={{ my: 2 }} />
-              <Typography variant="h6" gutterBottom>
-                משימות ({detailProject.tasks?.length || 0})
-              </Typography>
-              {detailProject.tasks && detailProject.tasks.length > 0 ? (
-                <TableContainer>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>כותרת</TableCell>
-                        <TableCell>סטטוס</TableCell>
-                        <TableCell>עדיפות</TableCell>
-                        <TableCell>דדליין</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {detailProject.tasks.map((task: Task) => (
-                        <TableRow key={task.id}>
-                          <TableCell>{task.title}</TableCell>
-                          <TableCell><StatusChip status={task.status} /></TableCell>
-                          <TableCell><PriorityChip priority={task.priority} /></TableCell>
-                          <TableCell>{formatDate(task.deadline)}</TableCell>
-                        </TableRow>
+              <Tabs
+                value={detailTab}
+                onChange={(_, v) => setDetailTab(v)}
+                sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}
+              >
+                <Tab label={`משימות (${detailProject.tasks?.length || 0})`} />
+                <Tab label={`תגובות (${detailProject.comments?.length || 0})`} />
+              </Tabs>
+
+              {/* Tasks Tab */}
+              {detailTab === 0 && (
+                <>
+                  {detailProject.tasks && detailProject.tasks.length > 0 ? (
+                    <TableContainer>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>כותרת</TableCell>
+                            <TableCell>סטטוס</TableCell>
+                            <TableCell>עדיפות</TableCell>
+                            <TableCell>דדליין</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {detailProject.tasks.map((task: Task) => (
+                            <TableRow key={task.id}>
+                              <TableCell>{task.title}</TableCell>
+                              <TableCell><StatusChip status={task.status} /></TableCell>
+                              <TableCell><PriorityChip priority={task.priority} /></TableCell>
+                              <TableCell>{formatDate(task.deadline)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      אין משימות בפרויקט זה
+                    </Typography>
+                  )}
+                </>
+              )}
+
+              {/* Comments Tab */}
+              {detailTab === 1 && (
+                <Box>
+                  {detailProject.comments && detailProject.comments.length > 0 ? (
+                    <Box sx={{ mb: 2 }}>
+                      {detailProject.comments.map((comment: Comment) => (
+                        <Box
+                          key={comment.id}
+                          sx={{
+                            display: 'flex',
+                            gap: 1.5,
+                            mb: 2,
+                            p: 1.5,
+                            bgcolor: 'action.hover',
+                            borderRadius: 2,
+                          }}
+                        >
+                          <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main', fontSize: '0.85rem' }}>
+                            {comment.author.firstName.charAt(0)}
+                          </Avatar>
+                          <Box sx={{ flex: 1 }}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                              <Typography variant="subtitle2">
+                                {comment.author.firstName} {comment.author.lastName}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {new Date(comment.createdAt).toLocaleString('he-IL')}
+                              </Typography>
+                            </Box>
+                            <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                              {comment.content}
+                            </Typography>
+                          </Box>
+                        </Box>
                       ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              ) : (
-                <Typography variant="body2" color="text.secondary">
-                  אין משימות בפרויקט זה
-                </Typography>
+                    </Box>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2, textAlign: 'center' }}>
+                      אין תגובות עדיין
+                    </Typography>
+                  )}
+
+                  {/* Add Comment */}
+                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end' }}>
+                    <TextField
+                      placeholder="כתוב תגובה..."
+                      value={newComment}
+                      onChange={(e) => setNewComment(e.target.value)}
+                      multiline
+                      maxRows={4}
+                      fullWidth
+                      size="small"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault()
+                          handleSendComment()
+                        }
+                      }}
+                    />
+                    <IconButton
+                      color="primary"
+                      onClick={handleSendComment}
+                      disabled={!newComment.trim() || sendingComment}
+                    >
+                      <SendIcon />
+                    </IconButton>
+                  </Box>
+                </Box>
               )}
             </DialogContent>
             <DialogActions>
@@ -457,6 +601,17 @@ const ProjectsPage: React.FC = () => {
           </>
         )}
       </Dialog>
+
+      {/* Delete Confirmation */}
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        title="מחיקת פרויקט"
+        message={`האם למחוק את הפרויקט "${projectToDelete?.name}"? כל המשימות והנתונים הקשורים יימחקו לצמיתות.`}
+        confirmText="מחק"
+        confirmColor="error"
+        onConfirm={confirmDelete}
+        onCancel={() => { setDeleteDialogOpen(false); setProjectToDelete(null) }}
+      />
     </Box>
   )
 }

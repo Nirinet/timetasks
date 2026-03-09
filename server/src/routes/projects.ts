@@ -1,8 +1,9 @@
 import express from 'express';
 import Joi from 'joi';
 import { prisma } from '../index';
-import { authenticateToken, requireAdminOrEmployee, AuthRequest } from '../middleware/auth';
+import { authenticateToken, requireAdmin, requireAdminOrEmployee, AuthRequest } from '../middleware/auth';
 import { ProjectStatus } from '@prisma/client';
+import { logger } from '../utils/logger';
 import {
   PROJECT_INCLUDE_LIST,
   PROJECT_INCLUDE_MUTATION,
@@ -164,6 +165,18 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
             }
           } : undefined,
           orderBy: { creationDate: 'desc' }
+        },
+        comments: {
+          include: {
+            author: {
+              select: {
+                firstName: true,
+                lastName: true,
+                role: true
+              }
+            }
+          },
+          orderBy: { createdAt: 'asc' }
         }
       }
     });
@@ -216,6 +229,60 @@ router.put('/:id', authenticateToken, requireAdminOrEmployee, async (req: AuthRe
       message: 'פרויקט עודכן בהצלחה',
       data: { project }
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Delete project
+router.delete('/:id', authenticateToken, requireAdminOrEmployee, async (req: AuthRequest, res, next) => {
+  try {
+    const project = await prisma.project.findUnique({
+      where: { id: req.params.id },
+      include: { _count: { select: { tasks: true } } }
+    });
+
+    if (!project) {
+      return res.status(404).json({ success: false, message: 'פרויקט לא נמצא' });
+    }
+
+    // Only admin can delete a project that has tasks
+    if (project._count.tasks > 0 && req.user!.role !== 'ADMIN') {
+      return res.status(403).json({
+        success: false,
+        message: 'רק מנהל יכול למחוק פרויקט עם משימות'
+      });
+    }
+
+    // Cascading delete in transaction
+    await prisma.$transaction(async (tx) => {
+      // Get all task IDs in the project
+      const taskIds = (await tx.task.findMany({
+        where: { projectId: project.id },
+        select: { id: true }
+      })).map(t => t.id);
+
+      if (taskIds.length > 0) {
+        // Delete task-related records
+        await tx.taskAssignment.deleteMany({ where: { taskId: { in: taskIds } } });
+        await tx.timeRecord.deleteMany({ where: { taskId: { in: taskIds } } });
+        await tx.comment.deleteMany({ where: { taskId: { in: taskIds } } });
+        await tx.fileAttachment.deleteMany({ where: { taskId: { in: taskIds } } });
+        await tx.taskChangeHistory.deleteMany({ where: { taskId: { in: taskIds } } });
+        // Delete subtasks first (parentTaskId), then all tasks
+        await tx.task.deleteMany({ where: { projectId: project.id, parentTaskId: { not: null } } });
+        await tx.task.deleteMany({ where: { projectId: project.id } });
+      }
+
+      // Delete alerts related to this project
+      await tx.alert.deleteMany({ where: { projectId: project.id } });
+
+      // Delete the project
+      await tx.project.delete({ where: { id: project.id } });
+    });
+
+    logger.info('Project deleted', { userId: req.user!.id, projectId: req.params.id, projectName: project.name });
+    res.json({ success: true, message: 'הפרויקט נמחק בהצלחה' });
   } catch (error) {
     next(error);
   }

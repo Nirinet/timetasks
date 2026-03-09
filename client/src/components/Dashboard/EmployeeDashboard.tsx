@@ -32,6 +32,7 @@ interface EmployeeStats {
   activeTasks: number
   completedThisWeek: number
   hoursThisWeek: number
+  hoursToday: number
   overdueTasks: number
 }
 
@@ -42,6 +43,7 @@ const EmployeeDashboard: React.FC = () => {
     activeTasks: 0,
     completedThisWeek: 0,
     hoursThisWeek: 0,
+    hoursToday: 0,
     overdueTasks: 0,
   })
   const [myTasks, setMyTasks] = useState<Task[]>([])
@@ -57,15 +59,18 @@ const EmployeeDashboard: React.FC = () => {
     if (!user) return
 
     try {
-      const [tasksRes, timersRes, hoursRes] = await Promise.all([
+      const today = new Date().toISOString().split('T')[0]
+      const [tasksRes, timersRes, hoursRes, todayRes] = await Promise.all([
         api.get(`/tasks?assignedTo=${user.id}`),
         api.get('/time/active'),
         api.get(`/reports/hours?employeeId=${user.id}`),
+        api.get(`/reports/hours?employeeId=${user.id}&startDate=${today}&endDate=${today}`),
       ])
 
       const tasks = tasksRes.data.data.tasks
       const timers = timersRes.data.data.activeTimers
       const hoursData = hoursRes.data.data
+      const todayData = todayRes.data.data
 
       const now = new Date()
       const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
@@ -92,6 +97,7 @@ const EmployeeDashboard: React.FC = () => {
         activeTasks: activeTasks.length,
         completedThisWeek,
         hoursThisWeek: hoursData.summary?.totalHours || 0,
+        hoursToday: todayData.summary?.totalHours || 0,
         overdueTasks: overdueTasks.length,
       })
 
@@ -205,6 +211,14 @@ const EmployeeDashboard: React.FC = () => {
           value={stats.completedThisWeek}
           icon={<TaskIcon />}
           color="success"
+        />
+      </Grid>
+      <Grid item xs={12} sm={6} md={2}>
+        <StatCard
+          title="שעות היום"
+          value={Math.round(stats.hoursToday * 10) / 10}
+          icon={<ScheduleIcon />}
+          color="secondary"
         />
       </Grid>
       <Grid item xs={12} sm={6} md={2.4}>

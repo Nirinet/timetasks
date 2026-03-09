@@ -1,8 +1,9 @@
 import express from 'express';
 import Joi from 'joi';
 import { prisma } from '../index';
-import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { authenticateToken, requireAdminOrEmployee, AuthRequest } from '../middleware/auth';
 import { TaskService } from '../services/TaskService';
+import { logger } from '../utils/logger';
 import {
   TASK_INCLUDE_LIST,
   TASK_INCLUDE_MUTATION,
@@ -112,6 +113,9 @@ router.post('/', authenticateToken, async (req: AuthRequest, res, next) => {
     });
 
     await taskService.handleAutomation(task.id);
+
+    // Record creation in history
+    await taskService.recordChanges(task.id, req.user!.id, 'CREATE', null, { title: task.title });
 
     res.status(201).json({
       success: true,
@@ -241,12 +245,110 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
       include: TASK_INCLUDE_MUTATION
     });
 
+    // Record changes to history
+    await taskService.recordChanges(req.params.id, req.user!.id, 'UPDATE', existingTask, req.body);
+
     await taskService.handleAutomation(task.id);
 
     res.json({
       success: true,
       message: 'משימה עודכנה בהצלחה',
       data: { task }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Delete task
+router.delete('/:id', authenticateToken, requireAdminOrEmployee, async (req: AuthRequest, res, next) => {
+  try {
+    const task = await prisma.task.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, title: true, projectId: true }
+    });
+
+    if (!task) {
+      return res.status(404).json({ success: false, message: 'משימה לא נמצאה' });
+    }
+
+    // Recursive delete helper
+    const deleteTaskRecursive = async (tx: any, taskId: string) => {
+      // Find subtasks
+      const subtasks = await tx.task.findMany({
+        where: { parentTaskId: taskId },
+        select: { id: true }
+      });
+
+      // Delete subtasks recursively
+      for (const sub of subtasks) {
+        await deleteTaskRecursive(tx, sub.id);
+      }
+
+      // Delete task's related records
+      await tx.taskAssignment.deleteMany({ where: { taskId } });
+      await tx.timeRecord.deleteMany({ where: { taskId } });
+      await tx.comment.deleteMany({ where: { taskId } });
+      await tx.fileAttachment.deleteMany({ where: { taskId } });
+      await tx.taskChangeHistory.deleteMany({ where: { taskId } });
+      await tx.alert.deleteMany({ where: { taskId } });
+      await tx.task.delete({ where: { id: taskId } });
+    };
+
+    await prisma.$transaction(async (tx) => {
+      await deleteTaskRecursive(tx, task.id);
+    });
+
+    logger.info('Task deleted', { userId: req.user!.id, taskId: req.params.id, taskTitle: task.title });
+    res.json({ success: true, message: 'המשימה נמחקה בהצלחה' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Clone task
+router.post('/:id/clone', authenticateToken, async (req: AuthRequest, res, next) => {
+  try {
+    const original = await prisma.task.findUnique({
+      where: { id: req.params.id },
+      include: {
+        assignedUsers: true
+      }
+    });
+
+    if (!original) {
+      return res.status(404).json({ success: false, message: 'משימה לא נמצאה' });
+    }
+
+    const cloned = await prisma.task.create({
+      data: {
+        title: `${original.title} (עותק)`,
+        description: original.description,
+        projectId: original.projectId,
+        priority: original.priority,
+        status: 'NEW',
+        deadline: original.deadline,
+        timeEstimate: original.timeEstimate,
+        parentTaskId: original.parentTaskId,
+        assignedUsers: original.assignedUsers.length > 0 ? {
+          create: original.assignedUsers.map(a => ({
+            userId: a.userId || undefined,
+            clientId: a.clientId || undefined,
+            assignedBy: req.user!.id
+          }))
+        } : undefined
+      },
+      include: TASK_INCLUDE_MUTATION
+    });
+
+    // Record creation in history
+    await taskService.recordChanges(cloned.id, req.user!.id, 'CREATE', null, { title: cloned.title });
+
+    logger.info('Task cloned', { userId: req.user!.id, originalId: req.params.id, newId: cloned.id });
+    res.status(201).json({
+      success: true,
+      message: 'המשימה שוכפלה בהצלחה',
+      data: { task: cloned }
     });
   } catch (error) {
     next(error);

@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { Link as RouterLink } from 'react-router-dom'
 import {
   Box,
   Card,
@@ -9,6 +10,7 @@ import {
   Container,
   Alert,
   CircularProgress,
+  Link,
 } from '@mui/material'
 import { useAuth } from '@/contexts/AuthContext'
 
@@ -122,7 +124,13 @@ const LoginPage: React.FC = () => {
               </Button>
             </form>
 
-            <Box mt={4} textAlign="center">
+            <Box mt={2} textAlign="center">
+              <Link component={RouterLink} to="/forgot-password" variant="body2" color="primary">
+                שכחת סיסמה?
+              </Link>
+            </Box>
+
+            <Box mt={3} textAlign="center">
               <Typography variant="body2" color="text.secondary">
                 הגישה מוגבלת למשתמשים רשומים בלבד
               </Typography>

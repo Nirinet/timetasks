@@ -59,6 +59,7 @@ export interface Project {
     lastName: string
   }
   tasks?: Task[]
+  comments?: Comment[]
   _count?: {
     tasks: number
   }
@@ -273,6 +274,27 @@ export interface EmployeeReport {
     completionPercentage: number
     onTimePercentage: number
   }
+}
+
+// Search types
+export interface SearchResult {
+  tasks: {
+    id: string
+    title: string
+    status: TaskStatus
+    project: { name: string }
+  }[]
+  projects: {
+    id: string
+    name: string
+    status: ProjectStatus
+    client: { name: string }
+  }[]
+  clients: {
+    id: string
+    name: string
+    contactPerson: string
+  }[]
 }
 
 // Priority colors mapping

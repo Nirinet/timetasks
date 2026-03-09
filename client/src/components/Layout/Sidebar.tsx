@@ -64,18 +64,24 @@ const menuItems: MenuItem[] = [
     label: 'מעקב זמן',
     path: '/time-tracking',
     icon: <TimeIcon />,
-    roles: ['ADMIN', 'EMPLOYEE'],
+    roles: ['ADMIN', 'EMPLOYEE', 'CLIENT'],
   },
   {
     label: 'דוחות',
     path: '/reports',
     icon: <ReportsIcon />,
-    roles: ['ADMIN', 'EMPLOYEE'],
+    roles: ['ADMIN', 'EMPLOYEE', 'CLIENT'],
   },
   {
     label: 'משתמשים',
     path: '/users',
     icon: <UsersIcon />,
+    roles: ['ADMIN'],
+  },
+  {
+    label: 'הגדרות מערכת',
+    path: '/settings',
+    icon: <SettingsIcon />,
     roles: ['ADMIN'],
   },
 ]
@@ -177,20 +183,27 @@ const Sidebar: React.FC<SidebarProps> = ({ onItemClick }) => {
 
       <Divider />
 
-      {/* Settings */}
+      {/* Profile */}
       <List>
         <ListItem disablePadding>
           <ListItemButton
             onClick={() => handleItemClick('/profile')}
+            selected={location.pathname === '/profile'}
             sx={{
               mx: 1,
               borderRadius: 1,
+              '&.Mui-selected': {
+                bgcolor: 'primary.main',
+                color: 'primary.contrastText',
+                '&:hover': { bgcolor: 'primary.dark' },
+                '& .MuiListItemIcon-root': { color: 'primary.contrastText' },
+              },
             }}
           >
             <ListItemIcon>
               <SettingsIcon />
             </ListItemIcon>
-            <ListItemText primary="הגדרות" />
+            <ListItemText primary="פרופיל" />
           </ListItemButton>
         </ListItem>
       </List>

@@ -42,15 +42,7 @@ import ConfirmDialog from '@/components/ConfirmDialog'
 const TimeTrackingPage: React.FC = () => {
   const { user } = useAuth()
   const isAdmin = user?.role === 'ADMIN'
-
-  if (user?.role === 'CLIENT') {
-    return (
-      <Box>
-        <PageHeader title="מעקב זמן" />
-        <Alert severity="info">אין הרשאה לצפות בדף זה</Alert>
-      </Box>
-    )
-  }
+  const isClient = user?.role === 'CLIENT'
 
   const [timeRecords, setTimeRecords] = useState<TimeRecord[]>([])
   const [activeTimers, setActiveTimers] = useState<TimeRecord[]>([])
@@ -82,14 +74,14 @@ const TimeTrackingPage: React.FC = () => {
       if (startDate) params.startDate = startDate.toISOString().split('T')[0]
       if (endDate) params.endDate = endDate.toISOString().split('T')[0]
 
-      const [recordsRes, activeRes] = await Promise.all([
-        api.get('/time', { params }),
-        api.get('/time/active'),
-      ])
+      const promises: Promise<any>[] = [api.get('/time', { params })]
+      if (!isClient) promises.push(api.get('/time/active'))
+
+      const [recordsRes, activeRes] = await Promise.all(promises)
 
       const data = recordsRes.data.data
       setTimeRecords(data?.timeRecords || data?.items || data || [])
-      setActiveTimers(activeRes.data.data?.activeTimers || activeRes.data.data || [])
+      if (activeRes) setActiveTimers(activeRes.data.data?.activeTimers || activeRes.data.data || [])
     } catch {
       // error toast handled by api interceptor
     } finally {
@@ -168,8 +160,8 @@ const TimeTrackingPage: React.FC = () => {
     <Box>
       <PageHeader title="מעקב זמן" />
 
-      {/* Active Timers */}
-      {activeTimers.length > 0 && (
+      {/* Active Timers (not for clients) */}
+      {!isClient && activeTimers.length > 0 && (
         <Card sx={{ mb: 3, bgcolor: 'warning.light', border: '1px solid', borderColor: 'warning.main' }}>
           <CardContent>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
@@ -224,13 +216,15 @@ const TimeTrackingPage: React.FC = () => {
           onChange={setEndDate}
           slotProps={{ textField: { size: 'small', sx: { width: 180 } } }}
         />
-        <Button
-          variant="outlined"
-          startIcon={<AddIcon />}
-          onClick={() => setManualOpen(true)}
-        >
-          הוספה ידנית
-        </Button>
+        {!isClient && (
+          <Button
+            variant="outlined"
+            startIcon={<AddIcon />}
+            onClick={() => setManualOpen(true)}
+          >
+            הוספה ידנית
+          </Button>
+        )}
       </Box>
 
       {loading && <LinearProgress sx={{ mb: 2 }} />}
@@ -254,7 +248,7 @@ const TimeTrackingPage: React.FC = () => {
                     <TableCell>משך</TableCell>
                     <TableCell>תיאור</TableCell>
                     <TableCell>סטטוס</TableCell>
-                    <TableCell>פעולות</TableCell>
+                    {!isClient && <TableCell>פעולות</TableCell>}
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -279,17 +273,19 @@ const TimeTrackingPage: React.FC = () => {
                           color={record.status === 'ACTIVE' ? 'warning' : 'default'}
                         />
                       </TableCell>
-                      <TableCell>
-                        <Tooltip title="מחיקה">
-                          <IconButton
-                            size="small"
-                            onClick={() => setDeleteId(record.id)}
-                            color="error"
-                          >
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </TableCell>
+                      {!isClient && (
+                        <TableCell>
+                          <Tooltip title="מחיקה">
+                            <IconButton
+                              size="small"
+                              onClick={() => setDeleteId(record.id)}
+                              color="error"
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>

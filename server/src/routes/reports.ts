@@ -12,7 +12,7 @@ function parsePagination(query: any): { take: number; skip: number; page: number
 }
 
 // Hours summary report
-router.get('/hours', authenticateToken, requireAdminOrEmployee, async (req: AuthRequest, res, next) => {
+router.get('/hours', authenticateToken, async (req: AuthRequest, res, next) => {
   try {
     const { startDate, endDate, employeeId, projectId } = req.query;
     const { take, skip, page, limit } = parsePagination(req.query);
@@ -20,6 +20,15 @@ router.get('/hours', authenticateToken, requireAdminOrEmployee, async (req: Auth
     let whereClause: any = {
       status: 'COMPLETED'
     };
+
+    // CLIENT: filter to tasks assigned to them
+    if (req.user!.role === 'CLIENT') {
+      whereClause.task = {
+        assignedUsers: {
+          some: { clientId: req.user!.id }
+        }
+      };
+    }
 
     if (startDate || endDate) {
       whereClause.date = {};
@@ -147,13 +156,24 @@ router.get('/hours', authenticateToken, requireAdminOrEmployee, async (req: Auth
 });
 
 // Project status report
-router.get('/project-status', authenticateToken, requireAdminOrEmployee, async (req: AuthRequest, res, next) => {
+router.get('/project-status', authenticateToken, async (req: AuthRequest, res, next) => {
   try {
     const { take, skip, page, limit } = parsePagination(req.query);
     const { status } = req.query;
 
     let whereClause: any = {};
     if (status) whereClause.status = status;
+
+    // CLIENT: filter to projects where they have assigned tasks
+    if (req.user!.role === 'CLIENT') {
+      whereClause.tasks = {
+        some: {
+          assignedUsers: {
+            some: { clientId: req.user!.id }
+          }
+        }
+      };
+    }
 
     // Fetch projects with pagination
     const [projects, totalCount] = await Promise.all([
@@ -317,6 +337,64 @@ router.get('/employee-performance', authenticateToken, requireAdminOrEmployee, a
     res.json({
       success: true,
       data: { employees: report }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Open tasks report
+router.get('/open-tasks', authenticateToken, async (req: AuthRequest, res, next) => {
+  try {
+    let whereClause: any = {
+      status: { not: 'COMPLETED' }
+    };
+
+    // CLIENT: filter to their assigned tasks
+    if (req.user!.role === 'CLIENT') {
+      whereClause.assignedUsers = {
+        some: { clientId: req.user!.id }
+      };
+    }
+
+    const tasks = await prisma.task.findMany({
+      where: whereClause,
+      include: {
+        project: {
+          select: { name: true, client: { select: { name: true } } }
+        },
+        assignedUsers: {
+          include: {
+            user: { select: { firstName: true, lastName: true } },
+            client: { select: { name: true } }
+          }
+        }
+      },
+      orderBy: [
+        { priority: 'asc' },
+        { deadline: 'asc' }
+      ]
+    });
+
+    const now = new Date();
+    const statusCounts = {
+      NEW: tasks.filter(t => t.status === 'NEW').length,
+      IN_PROGRESS: tasks.filter(t => t.status === 'IN_PROGRESS').length,
+      WAITING_CLIENT: tasks.filter(t => t.status === 'WAITING_CLIENT').length,
+    };
+
+    const overdue = tasks.filter(t => t.deadline && new Date(t.deadline) < now).length;
+
+    res.json({
+      success: true,
+      data: {
+        tasks,
+        summary: {
+          total: tasks.length,
+          ...statusCounts,
+          overdue
+        }
+      }
     });
   } catch (error) {
     next(error);

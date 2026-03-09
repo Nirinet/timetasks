@@ -22,6 +22,7 @@ import {
 
 import { useAuth } from '@/contexts/AuthContext'
 import Sidebar from './Sidebar'
+import GlobalSearch from './GlobalSearch'
 import NotificationPanel from '@/components/NotificationPanel'
 
 interface LayoutProps {
@@ -93,9 +94,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <MenuIcon />
           </IconButton>
 
-          <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
+          <Typography variant="h6" noWrap component="div">
             TimeTask
           </Typography>
+
+          {/* Global Search */}
+          <GlobalSearch />
+
+          <Box sx={{ flexGrow: 1 }} />
 
           {/* Notifications */}
           <IconButton

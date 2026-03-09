@@ -28,14 +28,23 @@ import {
   ListItemText,
   Divider,
   Avatar,
+  ToggleButtonGroup,
+  ToggleButton,
 } from '@mui/material'
 import { DatePicker } from '@mui/x-date-pickers/DatePicker'
 import EditIcon from '@mui/icons-material/Edit'
 import VisibilityIcon from '@mui/icons-material/Visibility'
+import DeleteIcon from '@mui/icons-material/Delete'
+import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import AttachFileIcon from '@mui/icons-material/AttachFile'
 import CommentIcon from '@mui/icons-material/Comment'
 import SendIcon from '@mui/icons-material/Send'
 import CloudUploadIcon from '@mui/icons-material/CloudUpload'
+import TableChartIcon from '@mui/icons-material/TableChart'
+import ViewKanbanIcon from '@mui/icons-material/ViewKanban'
+import CalendarMonthIcon from '@mui/icons-material/CalendarMonth'
+import BarChartIcon from '@mui/icons-material/BarChart'
+import GroupsIcon from '@mui/icons-material/Groups'
 import toast from 'react-hot-toast'
 
 import api from '@/services/api'
@@ -46,6 +55,13 @@ import StatusChip from '@/components/StatusChip'
 import PriorityChip from '@/components/PriorityChip'
 import PageHeader from '@/components/PageHeader'
 import EmptyState from '@/components/EmptyState'
+import ConfirmDialog from '@/components/ConfirmDialog'
+import KanbanBoard from '@/components/KanbanBoard'
+import CalendarView from '@/components/CalendarView'
+import GanttChart from '@/components/GanttChart'
+import TeamView from '@/components/TeamView'
+
+type ViewMode = 'table' | 'kanban' | 'calendar' | 'gantt' | 'team'
 
 interface TaskFormData {
   title: string
@@ -75,6 +91,7 @@ const TasksPage: React.FC = () => {
   const { user } = useAuth()
   const isAdmin = user?.role === 'ADMIN'
 
+  const [viewMode, setViewMode] = useState<ViewMode>('table')
   const [tasks, setTasks] = useState<Task[]>([])
   const [projects, setProjects] = useState<Project[]>([])
   const [users, setUsers] = useState<User[]>([])
@@ -94,6 +111,10 @@ const TasksPage: React.FC = () => {
   const [taskDetail, setTaskDetail] = useState<Task | null>(null)
   const [form, setForm] = useState<TaskFormData>(emptyForm)
   const [saving, setSaving] = useState(false)
+
+  // Delete & Clone
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [taskToDelete, setTaskToDelete] = useState<Task | null>(null)
 
   // Detail tabs
   const [detailTab, setDetailTab] = useState(0)
@@ -264,6 +285,36 @@ const TasksPage: React.FC = () => {
     e.target.value = ''
   }
 
+  const handleDelete = (task: Task) => {
+    setTaskToDelete(task)
+    setDeleteDialogOpen(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!taskToDelete) return
+    try {
+      await api.delete(`/tasks/${taskToDelete.id}`)
+      toast.success('המשימה נמחקה בהצלחה')
+      fetchTasks()
+      if (detailOpen) setDetailOpen(false)
+    } catch {
+      // error toast handled by api interceptor
+    } finally {
+      setDeleteDialogOpen(false)
+      setTaskToDelete(null)
+    }
+  }
+
+  const handleClone = async (task: Task) => {
+    try {
+      await api.post(`/tasks/${task.id}/clone`)
+      toast.success('המשימה שוכפלה בהצלחה')
+      fetchTasks()
+    } catch {
+      // error toast handled by api interceptor
+    }
+  }
+
   return (
     <Box>
       <PageHeader title="משימות" actionLabel="הוסף משימה" onAction={handleCreate} />
@@ -313,82 +364,147 @@ const TasksPage: React.FC = () => {
         </TextField>
       </Box>
 
-      {loading && <LinearProgress sx={{ mb: 2 }} />}
+      {/* View Mode Toggle */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        {loading && <LinearProgress sx={{ flex: 1, ml: 2 }} />}
+        <Box sx={{ flexGrow: 1 }} />
+        <ToggleButtonGroup
+          value={viewMode}
+          exclusive
+          onChange={(_, v) => v && setViewMode(v as ViewMode)}
+          size="small"
+        >
+          <ToggleButton value="table">
+            <Tooltip title="טבלה"><TableChartIcon fontSize="small" /></Tooltip>
+          </ToggleButton>
+          <ToggleButton value="kanban">
+            <Tooltip title="קנבן"><ViewKanbanIcon fontSize="small" /></Tooltip>
+          </ToggleButton>
+          <ToggleButton value="calendar">
+            <Tooltip title="לוח שנה"><CalendarMonthIcon fontSize="small" /></Tooltip>
+          </ToggleButton>
+          <ToggleButton value="gantt">
+            <Tooltip title="גאנט"><BarChartIcon fontSize="small" /></Tooltip>
+          </ToggleButton>
+          <ToggleButton value="team">
+            <Tooltip title="צוות"><GroupsIcon fontSize="small" /></Tooltip>
+          </ToggleButton>
+        </ToggleButtonGroup>
+      </Box>
 
-      <Card>
-        <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
-          {!loading && tasks.length === 0 ? (
-            <EmptyState title="אין משימות" subtitle="הוסף משימה חדשה או שנה את הפילטרים" />
-          ) : (
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>כותרת</TableCell>
-                    <TableCell>פרויקט</TableCell>
-                    <TableCell>סטטוס</TableCell>
-                    <TableCell>עדיפות</TableCell>
-                    <TableCell>מוקצה ל</TableCell>
-                    <TableCell>דדליין</TableCell>
-                    <TableCell>פעולות</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {tasks.map((task) => (
-                    <TableRow key={task.id} hover sx={{ cursor: 'pointer' }}>
-                      <TableCell
-                        sx={{ fontWeight: 500, maxWidth: 250 }}
-                        onClick={() => handleViewDetail(task)}
-                      >
-                        <Typography noWrap>{task.title}</Typography>
-                      </TableCell>
-                      <TableCell onClick={() => handleViewDetail(task)}>
-                        {task.project?.name}
-                      </TableCell>
-                      <TableCell onClick={() => handleViewDetail(task)}>
-                        <StatusChip status={task.status} />
-                      </TableCell>
-                      <TableCell onClick={() => handleViewDetail(task)}>
-                        <PriorityChip priority={task.priority} />
-                      </TableCell>
-                      <TableCell onClick={() => handleViewDetail(task)}>
-                        {task.assignedUsers?.length > 0
-                          ? task.assignedUsers.map(a =>
-                              a.user ? `${a.user.firstName} ${a.user.lastName}` : a.client?.name
-                            ).join(', ')
-                          : '-'
-                        }
-                      </TableCell>
-                      <TableCell onClick={() => handleViewDetail(task)}>
-                        {task.deadline ? (
-                          <Typography
-                            variant="body2"
-                            color={new Date(task.deadline) < new Date() && task.status !== 'COMPLETED' ? 'error' : 'inherit'}
-                          >
-                            {formatDate(task.deadline)}
-                          </Typography>
-                        ) : '-'}
-                      </TableCell>
-                      <TableCell>
-                        <Tooltip title="צפייה">
-                          <IconButton size="small" onClick={() => handleViewDetail(task)}>
-                            <VisibilityIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="עריכה">
-                          <IconButton size="small" onClick={() => handleEdit(task)}>
-                            <EditIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </TableCell>
+      {/* Table View */}
+      {viewMode === 'table' && (
+        <Card>
+          <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
+            {!loading && tasks.length === 0 ? (
+              <EmptyState title="אין משימות" subtitle="הוסף משימה חדשה או שנה את הפילטרים" />
+            ) : (
+              <TableContainer>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>כותרת</TableCell>
+                      <TableCell>פרויקט</TableCell>
+                      <TableCell>סטטוס</TableCell>
+                      <TableCell>עדיפות</TableCell>
+                      <TableCell>מוקצה ל</TableCell>
+                      <TableCell>דדליין</TableCell>
+                      <TableCell>פעולות</TableCell>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          )}
-        </CardContent>
-      </Card>
+                  </TableHead>
+                  <TableBody>
+                    {tasks.map((task) => (
+                      <TableRow key={task.id} hover sx={{ cursor: 'pointer' }}>
+                        <TableCell
+                          sx={{ fontWeight: 500, maxWidth: 250 }}
+                          onClick={() => handleViewDetail(task)}
+                        >
+                          <Typography noWrap>{task.title}</Typography>
+                        </TableCell>
+                        <TableCell onClick={() => handleViewDetail(task)}>
+                          {task.project?.name}
+                        </TableCell>
+                        <TableCell onClick={() => handleViewDetail(task)}>
+                          <StatusChip status={task.status} />
+                        </TableCell>
+                        <TableCell onClick={() => handleViewDetail(task)}>
+                          <PriorityChip priority={task.priority} />
+                        </TableCell>
+                        <TableCell onClick={() => handleViewDetail(task)}>
+                          {task.assignedUsers?.length > 0
+                            ? task.assignedUsers.map(a =>
+                                a.user ? `${a.user.firstName} ${a.user.lastName}` : a.client?.name
+                              ).join(', ')
+                            : '-'
+                          }
+                        </TableCell>
+                        <TableCell onClick={() => handleViewDetail(task)}>
+                          {task.deadline ? (
+                            <Typography
+                              variant="body2"
+                              color={new Date(task.deadline) < new Date() && task.status !== 'COMPLETED' ? 'error' : 'inherit'}
+                            >
+                              {formatDate(task.deadline)}
+                            </Typography>
+                          ) : '-'}
+                        </TableCell>
+                        <TableCell>
+                          <Tooltip title="צפייה">
+                            <IconButton size="small" onClick={() => handleViewDetail(task)}>
+                              <VisibilityIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="עריכה">
+                            <IconButton size="small" onClick={() => handleEdit(task)}>
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="שכפול">
+                            <IconButton size="small" onClick={() => handleClone(task)}>
+                              <ContentCopyIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          {isAdmin && (
+                            <Tooltip title="מחיקה">
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={() => handleDelete(task)}
+                              >
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Kanban View */}
+      {viewMode === 'kanban' && (
+        <KanbanBoard tasks={tasks} onTaskClick={handleViewDetail} onRefresh={fetchTasks} />
+      )}
+
+      {/* Calendar View */}
+      {viewMode === 'calendar' && (
+        <CalendarView tasks={tasks} onTaskClick={handleViewDetail} />
+      )}
+
+      {/* Gantt View */}
+      {viewMode === 'gantt' && (
+        <GanttChart tasks={tasks} onTaskClick={handleViewDetail} />
+      )}
+
+      {/* Team View */}
+      {viewMode === 'team' && (
+        <TeamView tasks={tasks} onTaskClick={handleViewDetail} />
+      )}
 
       {/* Create / Edit Dialog */}
       <Dialog open={dialogOpen} onClose={handleClose} maxWidth="sm" fullWidth>
@@ -722,6 +838,17 @@ const TasksPage: React.FC = () => {
           </>
         )}
       </Dialog>
+
+      {/* Delete Confirmation */}
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        title="מחיקת משימה"
+        message={`האם למחוק את המשימה "${taskToDelete?.title}"? כל משימות המשנה והנתונים הקשורים יימחקו לצמיתות.`}
+        confirmText="מחק"
+        confirmColor="error"
+        onConfirm={confirmDelete}
+        onCancel={() => { setDeleteDialogOpen(false); setTaskToDelete(null) }}
+      />
     </Box>
   )
 }

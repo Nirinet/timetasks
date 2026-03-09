@@ -29,6 +29,7 @@ import {
 } from '@mui/material'
 import EditIcon from '@mui/icons-material/Edit'
 import VisibilityIcon from '@mui/icons-material/Visibility'
+import DeleteIcon from '@mui/icons-material/Delete'
 import toast from 'react-hot-toast'
 
 import api from '@/services/api'
@@ -37,6 +38,7 @@ import { formatDate } from '@/utils/formatters'
 import ProjectStatusChip from '@/components/ProjectStatusChip'
 import PageHeader from '@/components/PageHeader'
 import EmptyState from '@/components/EmptyState'
+import ConfirmDialog from '@/components/ConfirmDialog'
 
 interface ClientFormData {
   name: string
@@ -68,6 +70,8 @@ const ClientsPage: React.FC = () => {
   const [detailClient, setDetailClient] = useState<Client | null>(null)
   const [form, setForm] = useState<ClientFormData>(emptyForm)
   const [saving, setSaving] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [clientToDelete, setClientToDelete] = useState<Client | null>(null)
 
   const fetchClients = async () => {
     try {
@@ -114,6 +118,25 @@ const ClientsPage: React.FC = () => {
       setDetailDialogOpen(true)
     } catch {
       // error toast handled by api interceptor
+    }
+  }
+
+  const handleDelete = (client: Client) => {
+    setClientToDelete(client)
+    setDeleteDialogOpen(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!clientToDelete) return
+    try {
+      await api.delete(`/clients/${clientToDelete.id}`)
+      toast.success('הלקוח נמחק בהצלחה')
+      fetchClients()
+    } catch {
+      // error toast handled by api interceptor
+    } finally {
+      setDeleteDialogOpen(false)
+      setClientToDelete(null)
     }
   }
 
@@ -218,6 +241,15 @@ const ClientsPage: React.FC = () => {
                         <Tooltip title="עריכה">
                           <IconButton size="small" onClick={() => handleEdit(client)}>
                             <EditIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="מחיקה">
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={() => handleDelete(client)}
+                          >
+                            <DeleteIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
                       </TableCell>
@@ -386,6 +418,17 @@ const ClientsPage: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Delete Confirmation */}
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        title="מחיקת לקוח"
+        message={`האם למחוק את הלקוח "${clientToDelete?.name}"? פעולה זו אינה ניתנת לביטול.`}
+        confirmText="מחק"
+        confirmColor="error"
+        onConfirm={confirmDelete}
+        onCancel={() => { setDeleteDialogOpen(false); setClientToDelete(null) }}
+      />
     </Box>
   )
 }

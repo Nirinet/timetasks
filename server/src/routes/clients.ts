@@ -2,6 +2,7 @@ import express from 'express';
 import Joi from 'joi';
 import { prisma } from '../index';
 import { authenticateToken, requireAdminOrEmployee, AuthRequest } from '../middleware/auth';
+import { logger } from '../utils/logger';
 
 const router = express.Router();
 
@@ -180,6 +181,35 @@ router.put('/:id', authenticateToken, requireAdminOrEmployee, async (req: AuthRe
       message: 'לקוח עודכן בהצלחה',
       data: { client }
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Delete client
+router.delete('/:id', authenticateToken, requireAdminOrEmployee, async (req: AuthRequest, res, next) => {
+  try {
+    const client = await prisma.client.findUnique({
+      where: { id: req.params.id },
+      include: { _count: { select: { projects: true } } }
+    });
+
+    if (!client) {
+      return res.status(404).json({ success: false, message: 'לקוח לא נמצא' });
+    }
+
+    if (client._count.projects > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'לא ניתן למחוק לקוח עם פרויקטים. יש למחוק את הפרויקטים קודם או להפוך אותו ללא פעיל'
+      });
+    }
+
+    await prisma.taskAssignment.deleteMany({ where: { clientId: client.id } });
+    await prisma.client.delete({ where: { id: req.params.id } });
+
+    logger.info('Client deleted', { userId: req.user!.id, clientId: req.params.id });
+    res.json({ success: true, message: 'הלקוח נמחק בהצלחה' });
   } catch (error) {
     next(error);
   }

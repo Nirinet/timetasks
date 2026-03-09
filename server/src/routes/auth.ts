@@ -1,8 +1,9 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import Joi from 'joi';
-import { prisma } from '../index';
+import { prisma, emailService } from '../index';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { loginRateLimiter, resetLoginAttempts } from '../middleware/loginRateLimiter';
 import { logger } from '../utils/logger';
@@ -487,6 +488,126 @@ router.get('/verify', authenticateToken, async (req: AuthRequest, res, next) => 
       user: req.user
     }
   });
+});
+
+// Forgot password - request reset email
+router.post('/forgot-password', async (req, res, next) => {
+  try {
+    const schema = Joi.object({
+      email: Joi.string().email().required().messages({
+        'string.email': 'כתובת דוא"ל לא תקינה',
+        'any.required': 'כתובת דוא"ל נדרשת'
+      })
+    });
+
+    const { error } = schema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ success: false, message: error.details[0].message });
+    }
+
+    const { email } = req.body;
+    const user = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
+      select: { id: true, email: true, firstName: true, isActive: true }
+    });
+
+    // Always return success for security (don't leak which emails exist)
+    if (!user || !user.isActive) {
+      return res.json({
+        success: true,
+        message: 'אם הכתובת קיימת במערכת, נשלח אליה מייל לאיפוס סיסמה'
+      });
+    }
+
+    // Generate random token
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex');
+
+    // Save hashed token to DB with 1-hour expiry
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        resetToken: hashedToken,
+        resetTokenExpiry: new Date(Date.now() + 60 * 60 * 1000) // 1 hour
+      }
+    });
+
+    // Build reset URL and send email
+    const clientUrl = process.env.CLIENT_URL || process.env.CORS_ORIGIN || 'http://localhost:5173';
+    const resetUrl = `${clientUrl}/reset-password?token=${rawToken}`;
+    await emailService.sendPasswordResetEmail(user.email, resetUrl, user.firstName);
+
+    logger.info('Password reset requested', { email: user.email, ip: req.ip });
+
+    res.json({
+      success: true,
+      message: 'אם הכתובת קיימת במערכת, נשלח אליה מייל לאיפוס סיסמה'
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Reset password with token
+router.post('/reset-password', async (req, res, next) => {
+  try {
+    const schema = Joi.object({
+      token: Joi.string().required().messages({
+        'any.required': 'אסימון איפוס חסר'
+      }),
+      newPassword: Joi.string().min(8).pattern(new RegExp('^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)')).required().messages({
+        'string.min': 'סיסמה חדשה חייבת להכיל לפחות 8 תווים',
+        'string.pattern.base': 'סיסמה חדשה חייבת להכיל אות קטנה, אות גדולה ומספר',
+        'any.required': 'סיסמה חדשה נדרשת'
+      })
+    });
+
+    const { error } = schema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ success: false, message: error.details[0].message });
+    }
+
+    const { token, newPassword } = req.body;
+
+    // Hash the incoming token to compare with DB
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+    // Find user with valid token
+    const user = await prisma.user.findFirst({
+      where: {
+        resetToken: hashedToken,
+        resetTokenExpiry: { gt: new Date() }
+      },
+      select: { id: true, email: true }
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: 'קישור לאיפוס סיסמה לא תקין או שפג תוקפו'
+      });
+    }
+
+    // Hash new password and clear reset token
+    const hashedPassword = await bcrypt.hash(newPassword, parseInt(process.env.BCRYPT_ROUNDS || '12'));
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        resetToken: null,
+        resetTokenExpiry: null
+      }
+    });
+
+    logger.info('Password reset completed', { email: user.email, ip: req.ip });
+
+    res.json({
+      success: true,
+      message: 'הסיסמה שונתה בהצלחה. כעת ניתן להתחבר'
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 export default router;

@@ -4,6 +4,7 @@ import Joi from 'joi';
 import { prisma } from '../index';
 import { authenticateToken, requireAdmin, AuthRequest } from '../middleware/auth';
 import { UserRole } from '@prisma/client';
+import { logger } from '../utils/logger';
 
 const router = express.Router();
 
@@ -139,6 +140,32 @@ router.put('/:id', authenticateToken, requireAdmin, async (req: AuthRequest, res
       message: 'משתמש עודכן בהצלחה',
       data: { user }
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Delete (deactivate) user (Admin only)
+router.delete('/:id', authenticateToken, requireAdmin, async (req: AuthRequest, res, next) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.params.id } });
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'משתמש לא נמצא' });
+    }
+
+    // Prevent self-deletion
+    if (user.id === req.user!.id) {
+      return res.status(400).json({ success: false, message: 'לא ניתן למחוק את המשתמש שלך' });
+    }
+
+    // Soft delete - deactivate instead of hard delete to preserve FK references
+    await prisma.user.update({
+      where: { id: req.params.id },
+      data: { isActive: false }
+    });
+
+    logger.info('User deactivated', { userId: req.user!.id, targetUserId: req.params.id });
+    res.json({ success: true, message: 'המשתמש הושבת בהצלחה' });
   } catch (error) {
     next(error);
   }

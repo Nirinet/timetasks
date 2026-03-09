@@ -5,6 +5,8 @@ import { Box, CircularProgress } from '@mui/material'
 import { useAuth } from '@/contexts/AuthContext'
 import Layout from '@/components/Layout'
 import LoginPage from '@/pages/LoginPage'
+import ForgotPasswordPage from '@/pages/ForgotPasswordPage'
+import ResetPasswordPage from '@/pages/ResetPasswordPage'
 import Dashboard from '@/pages/Dashboard'
 import TasksPage from '@/pages/TasksPage'
 import ProjectsPage from '@/pages/ProjectsPage'
@@ -13,6 +15,7 @@ import TimeTrackingPage from '@/pages/TimeTrackingPage'
 import ReportsPage from '@/pages/ReportsPage'
 import UsersPage from '@/pages/UsersPage'
 import ProfilePage from '@/pages/ProfilePage'
+import SettingsPage from '@/pages/SettingsPage'
 
 function App() {
   const { user, loading } = useAuth()
@@ -34,6 +37,8 @@ function App() {
     return (
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     )
@@ -60,6 +65,7 @@ function App() {
         {user.role === 'ADMIN' && (
           <>
             <Route path="/users" element={<UsersPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
           </>
         )}
 

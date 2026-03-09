@@ -30,27 +30,26 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import AssessmentIcon from '@mui/icons-material/Assessment'
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf'
+import TableChartIcon from '@mui/icons-material/TableChart'
+import DescriptionIcon from '@mui/icons-material/Description'
+import Chip from '@mui/material/Chip'
 import toast from 'react-hot-toast'
 
 import api from '@/services/api'
 import { useAuth } from '@/contexts/AuthContext'
-import { Project, User, ProjectReport, EmployeeReport } from '@/types'
-import { formatDuration } from '@/utils/formatters'
+import { Project, User, ProjectReport, EmployeeReport, Task } from '@/types'
+import { formatDuration, formatDate } from '@/utils/formatters'
 import ProjectStatusChip from '@/components/ProjectStatusChip'
+import StatusChip from '@/components/StatusChip'
+import PriorityChip from '@/components/PriorityChip'
 import PageHeader from '@/components/PageHeader'
 import EmptyState from '@/components/EmptyState'
+import { exportToPDF, exportToExcel, exportToCSV } from '@/utils/exportUtils'
 
 const ReportsPage: React.FC = () => {
   const { user } = useAuth()
-
-  if (user?.role === 'CLIENT') {
-    return (
-      <Box>
-        <PageHeader title="דוחות" />
-        <Alert severity="info">אין הרשאה לצפות בדף זה</Alert>
-      </Box>
-    )
-  }
+  const isClient = user?.role === 'CLIENT'
 
   const [activeTab, setActiveTab] = useState(0)
   const [loading, setLoading] = useState(false)
@@ -65,6 +64,24 @@ const ReportsPage: React.FC = () => {
 
   // Employee performance
   const [employeeReports, setEmployeeReports] = useState<EmployeeReport[]>([])
+
+  // Open tasks
+  const [openTasks, setOpenTasks] = useState<Task[]>([])
+  const [openTasksSummary, setOpenTasksSummary] = useState<any>(null)
+
+  const fetchOpenTasks = async () => {
+    setLoading(true)
+    try {
+      const response = await api.get('/reports/open-tasks')
+      const data = response.data.data
+      setOpenTasks(data?.tasks || [])
+      setOpenTasksSummary(data?.summary || null)
+    } catch {
+      // error toast handled by api interceptor
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const fetchHoursReport = async () => {
     setLoading(true)
@@ -111,7 +128,8 @@ const ReportsPage: React.FC = () => {
   useEffect(() => {
     if (activeTab === 0) fetchHoursReport()
     else if (activeTab === 1) fetchProjectStatus()
-    else if (activeTab === 2) fetchEmployeePerformance()
+    else if (activeTab === 2 && !isClient) fetchEmployeePerformance()
+    else if ((activeTab === 2 && isClient) || activeTab === 3) fetchOpenTasks()
   }, [activeTab])
 
   const projectChartData = hoursData?.byProject
@@ -133,7 +151,8 @@ const ReportsPage: React.FC = () => {
       <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)} sx={{ mb: 3 }}>
         <Tab label="דוח שעות" />
         <Tab label="סטטוס פרויקטים" />
-        <Tab label="ביצועי עובדים" />
+        {!isClient && <Tab label="ביצועי עובדים" />}
+        <Tab label="משימות פתוחות" />
       </Tabs>
 
       {loading && <LinearProgress sx={{ mb: 2 }} />}
@@ -157,6 +176,25 @@ const ReportsPage: React.FC = () => {
             <Button variant="contained" onClick={fetchHoursReport} size="small">
               הצג דוח
             </Button>
+            {hoursData && (
+              <>
+                <Button size="small" startIcon={<PictureAsPdfIcon />} onClick={() => {
+                  const headers = ['פרויקט', 'שעות']
+                  const rows = Object.entries(hoursData.byProject || {}).map(([name, hrs]) => [name, Math.round(hrs * 10) / 10])
+                  exportToPDF('דוח שעות', headers, rows, 'hours-report')
+                }}>PDF</Button>
+                <Button size="small" startIcon={<TableChartIcon />} onClick={() => {
+                  const headers = ['פרויקט', 'שעות']
+                  const rows = Object.entries(hoursData.byProject || {}).map(([name, hrs]) => [name, Math.round(hrs * 10) / 10])
+                  exportToExcel('דוח שעות', headers, rows, 'hours-report')
+                }}>Excel</Button>
+                <Button size="small" startIcon={<DescriptionIcon />} onClick={() => {
+                  const headers = ['פרויקט', 'שעות']
+                  const rows = Object.entries(hoursData.byProject || {}).map(([name, hrs]) => [name, Math.round(hrs * 10) / 10])
+                  exportToCSV(headers, rows, 'hours-report')
+                }}>CSV</Button>
+              </>
+            )}
           </Box>
 
           {hoursData && (
@@ -336,6 +374,90 @@ const ReportsPage: React.FC = () => {
                 </Card>
               )}
             </>
+          )}
+        </Box>
+      )}
+
+      {/* Open Tasks Tab */}
+      {((activeTab === 2 && isClient) || activeTab === 3) && (
+        <Box>
+          {openTasksSummary && (
+            <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap' }}>
+              <Chip label={`סה"כ: ${openTasksSummary.total}`} />
+              <Chip label={`חדשות: ${openTasksSummary.NEW}`} color="default" />
+              <Chip label={`בביצוע: ${openTasksSummary.IN_PROGRESS}`} color="primary" />
+              <Chip label={`ממתינות ללקוח: ${openTasksSummary.WAITING_CLIENT}`} color="warning" />
+              <Chip label={`באיחור: ${openTasksSummary.overdue}`} color="error" />
+              <Box sx={{ flexGrow: 1 }} />
+              <Button size="small" startIcon={<PictureAsPdfIcon />} onClick={() => {
+                const headers = ['כותרת', 'פרויקט', 'סטטוס', 'עדיפות', 'דדליין']
+                const rows = openTasks.map(t => [t.title, t.project?.name || '', t.status, t.priority, t.deadline ? formatDate(t.deadline) : '-'])
+                exportToPDF('משימות פתוחות', headers, rows, 'open-tasks')
+              }}>PDF</Button>
+              <Button size="small" startIcon={<TableChartIcon />} onClick={() => {
+                const headers = ['כותרת', 'פרויקט', 'סטטוס', 'עדיפות', 'דדליין']
+                const rows = openTasks.map(t => [t.title, t.project?.name || '', t.status, t.priority, t.deadline ? formatDate(t.deadline) : '-'])
+                exportToExcel('משימות פתוחות', headers, rows, 'open-tasks')
+              }}>Excel</Button>
+              <Button size="small" startIcon={<DescriptionIcon />} onClick={() => {
+                const headers = ['כותרת', 'פרויקט', 'סטטוס', 'עדיפות', 'דדליין']
+                const rows = openTasks.map(t => [t.title, t.project?.name || '', t.status, t.priority, t.deadline ? formatDate(t.deadline) : '-'])
+                exportToCSV(headers, rows, 'open-tasks')
+              }}>CSV</Button>
+            </Box>
+          )}
+
+          {!loading && openTasks.length === 0 ? (
+            <EmptyState icon={<AssessmentIcon />} title="אין משימות פתוחות" subtitle="כל המשימות הושלמו!" />
+          ) : (
+            <Card>
+              <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
+                <TableContainer>
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>כותרת</TableCell>
+                        <TableCell>פרויקט</TableCell>
+                        <TableCell>לקוח</TableCell>
+                        <TableCell>סטטוס</TableCell>
+                        <TableCell>עדיפות</TableCell>
+                        <TableCell>דדליין</TableCell>
+                        <TableCell>מוקצה ל</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {openTasks.map((task) => (
+                        <TableRow key={task.id} hover>
+                          <TableCell sx={{ fontWeight: 500 }}>{task.title}</TableCell>
+                          <TableCell>{task.project?.name}</TableCell>
+                          <TableCell>{(task.project as any)?.client?.name || '-'}</TableCell>
+                          <TableCell><StatusChip status={task.status} /></TableCell>
+                          <TableCell><PriorityChip priority={task.priority} /></TableCell>
+                          <TableCell>
+                            {task.deadline ? (
+                              <Typography
+                                variant="body2"
+                                color={new Date(task.deadline) < new Date() ? 'error' : 'inherit'}
+                              >
+                                {formatDate(task.deadline)}
+                              </Typography>
+                            ) : '-'}
+                          </TableCell>
+                          <TableCell>
+                            {task.assignedUsers?.length > 0
+                              ? task.assignedUsers.map(a =>
+                                  a.user ? `${a.user.firstName} ${a.user.lastName}` : a.client?.name
+                                ).join(', ')
+                              : '-'
+                            }
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </CardContent>
+            </Card>
           )}
         </Box>
       )}
