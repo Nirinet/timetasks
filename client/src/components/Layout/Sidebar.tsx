@@ -64,13 +64,13 @@ const menuItems: MenuItem[] = [
     label: 'מעקב זמן',
     path: '/time-tracking',
     icon: <TimeIcon />,
-    roles: ['ADMIN', 'EMPLOYEE', 'CLIENT'],
+    roles: ['ADMIN', 'EMPLOYEE'],
   },
   {
     label: 'דוחות',
     path: '/reports',
     icon: <ReportsIcon />,
-    roles: ['ADMIN', 'EMPLOYEE', 'CLIENT'],
+    roles: ['ADMIN', 'EMPLOYEE'],
   },
   {
     label: 'משתמשים',

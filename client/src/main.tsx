@@ -6,6 +6,10 @@ import { ThemeProvider } from '@mui/material/styles'
 import CssBaseline from '@mui/material/CssBaseline'
 import { Toaster } from 'react-hot-toast'
 
+import { LocalizationProvider } from '@mui/x-date-pickers'
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns'
+import { he } from 'date-fns/locale'
+
 import App from './App.tsx'
 import ErrorBoundary from './components/ErrorBoundary'
 import { AuthProvider } from './contexts/AuthContext'
@@ -34,6 +38,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <BrowserRouter>
           <ThemeProvider theme={theme}>
             <CssBaseline />
+            <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={he}>
             <AuthProvider>
               <SocketProvider>
                 <App />
@@ -63,6 +68,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                 />
               </SocketProvider>
             </AuthProvider>
+            </LocalizationProvider>
           </ThemeProvider>
         </BrowserRouter>
       </QueryClientProvider>
