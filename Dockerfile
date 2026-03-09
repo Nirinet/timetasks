@@ -27,8 +27,8 @@ WORKDIR /app/server
 RUN apk add --no-cache python3 make g++ openssl
 
 # Copy server package files
-COPY server/package*.json ./
-RUN npm ci
+COPY server/package.json ./
+RUN npm install
 
 # Copy server source code
 COPY server/ .
