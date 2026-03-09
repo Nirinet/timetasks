@@ -6,8 +6,8 @@ FROM node:18-alpine AS client-builder
 WORKDIR /app/client
 
 # Copy client package files
-COPY client/package*.json ./
-RUN npm ci
+COPY client/package.json ./
+RUN npm install
 
 # Copy client source code
 COPY client/ .
