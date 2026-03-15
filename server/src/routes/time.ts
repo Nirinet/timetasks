@@ -72,9 +72,13 @@ router.get('/', authenticateToken, async (req: AuthRequest, res, next) => {
               project: {
                 select: {
                   name: true,
-                  client: {
-                    select: {
-                      name: true
+                  clients: {
+                    include: {
+                      client: {
+                        select: {
+                          name: true
+                        }
+                      }
                     }
                   }
                 }
@@ -366,9 +370,13 @@ router.get('/active', authenticateToken, requireAdminOrEmployee, async (req: Aut
               select: {
                 id: true,
                 name: true,
-                client: {
-                  select: {
-                    name: true
+                clients: {
+                  include: {
+                    client: {
+                      select: {
+                        name: true
+                      }
+                    }
                   }
                 }
               }

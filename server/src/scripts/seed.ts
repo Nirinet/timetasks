@@ -75,12 +75,18 @@ async function main() {
       id: 'sample-project-1',
       name: 'אתר תדמיתי חדש',
       description: 'פיתוח אתר תדמיתי מודרני עם ממשק ניהול תוכן',
-      clientId: client.id,
       createdById: admin.id,
       startDate: new Date(),
       targetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
       hoursBudget: 120,
-      status: 'ACTIVE'
+      status: 'ACTIVE',
+      clients: {
+        create: {
+          clientId: client.id,
+          isPrimary: true,
+          assignedBy: admin.id
+        }
+      }
     }
   })
 
