@@ -25,7 +25,11 @@ router.get('/hours', authenticateToken, async (req: AuthRequest, res, next) => {
     if (req.user!.role === 'CLIENT') {
       whereClause.task = {
         project: {
-          clientId: req.user!.clientEntityId ?? '__no_access__'
+          clients: {
+            some: {
+              clientId: req.user!.clientEntityId ?? '__no_access__'
+            }
+          }
         }
       };
     }
@@ -54,9 +58,13 @@ router.get('/hours', authenticateToken, async (req: AuthRequest, res, next) => {
               project: {
                 select: {
                   name: true,
-                  client: {
-                    select: {
-                      name: true
+                  clients: {
+                    include: {
+                      client: {
+                        select: {
+                          name: true
+                        }
+                      }
                     }
                   }
                 }
@@ -166,7 +174,11 @@ router.get('/project-status', authenticateToken, async (req: AuthRequest, res, n
 
     // CLIENT: filter to projects belonging to their linked Client entity
     if (req.user!.role === 'CLIENT') {
-      whereClause.clientId = req.user!.clientEntityId ?? '__no_access__';
+      whereClause.clients = {
+        some: {
+          clientId: req.user!.clientEntityId ?? '__no_access__'
+        }
+      };
     }
 
     // Fetch projects with pagination
@@ -174,9 +186,13 @@ router.get('/project-status', authenticateToken, async (req: AuthRequest, res, n
       prisma.project.findMany({
         where: whereClause,
         include: {
-          client: {
-            select: {
-              name: true
+          clients: {
+            include: {
+              client: {
+                select: {
+                  name: true
+                }
+              }
             }
           },
           tasks: {
@@ -226,7 +242,7 @@ router.get('/project-status', authenticateToken, async (req: AuthRequest, res, n
         project: {
           id: project.id,
           name: project.name,
-          client: project.client.name,
+          client: project.clients.map((pc: any) => pc.client.name).join(', '),
           status: project.status
         },
         stats: {
@@ -347,7 +363,11 @@ router.get('/open-tasks', authenticateToken, async (req: AuthRequest, res, next)
     // CLIENT: filter to tasks in their linked Client's projects
     if (req.user!.role === 'CLIENT') {
       whereClause.project = {
-        clientId: req.user!.clientEntityId ?? '__no_access__'
+        clients: {
+          some: {
+            clientId: req.user!.clientEntityId ?? '__no_access__'
+          }
+        }
       };
     }
 
@@ -355,7 +375,7 @@ router.get('/open-tasks', authenticateToken, async (req: AuthRequest, res, next)
       where: whereClause,
       include: {
         project: {
-          select: { name: true, client: { select: { name: true } } }
+          select: { name: true, clients: { include: { client: { select: { name: true } } } } }
         },
         assignedUsers: {
           include: {

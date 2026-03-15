@@ -269,7 +269,7 @@ const AdminDashboard: React.FC = () => {
                   {recentProjects.map((project) => (
                     <TableRow key={project.id}>
                       <TableCell>{project.name}</TableCell>
-                      <TableCell>{project.client.name}</TableCell>
+                      <TableCell>{project.clients?.map((pc: any) => pc.client.name).join(', ')}</TableCell>
                       <TableCell>
                         <Chip
                           size="small"

@@ -38,7 +38,11 @@ router.get('/', authenticateToken, async (req: AuthRequest, res, next) => {
       // Clients can see time records for tasks in their linked Client's projects
       whereClause.task = {
         project: {
-          clientId: req.user!.clientEntityId ?? '__no_access__'
+          clients: {
+            some: {
+              clientId: req.user!.clientEntityId ?? '__no_access__'
+            }
+          }
         }
       };
     }

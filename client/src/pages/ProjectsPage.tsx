@@ -40,7 +40,7 @@ import toast from 'react-hot-toast'
 
 import api from '@/services/api'
 import { useAuth } from '@/contexts/AuthContext'
-import { Project, Client, User, ProjectStatus, Task, Comment, ProjectAssignment } from '@/types'
+import { Project, Client, User, ProjectStatus, Task, Comment, ProjectAssignment, ProjectClientEntry } from '@/types'
 import { formatDate } from '@/utils/formatters'
 import ProjectStatusChip from '@/components/ProjectStatusChip'
 import StatusChip from '@/components/StatusChip'
@@ -52,7 +52,7 @@ import ConfirmDialog from '@/components/ConfirmDialog'
 interface ProjectFormData {
   name: string
   description: string
-  clientId: string
+  clientIds: string[]
   startDate: Date | null
   targetDate: Date | null
   hoursBudget: string
@@ -62,12 +62,16 @@ interface ProjectFormData {
 const emptyForm: ProjectFormData = {
   name: '',
   description: '',
-  clientId: '',
+  clientIds: [],
   startDate: new Date(),
   targetDate: null,
   hoursBudget: '',
   status: 'ACTIVE',
 }
+
+// Helper: get comma-separated client names from project
+const getClientNames = (project: Project): string =>
+  project.clients?.map(pc => pc.client.name).join(', ') || ''
 
 const ProjectsPage: React.FC = () => {
   const { user } = useAuth()
@@ -92,6 +96,8 @@ const ProjectsPage: React.FC = () => {
   const [allUsers, setAllUsers] = useState<User[]>([])
   const [selectedUsersToAdd, setSelectedUsersToAdd] = useState<User[]>([])
   const [savingMembers, setSavingMembers] = useState(false)
+  const [selectedClientsToAdd, setSelectedClientsToAdd] = useState<Client[]>([])
+  const [savingClients, setSavingClients] = useState(false)
 
   const fetchProjects = async () => {
     try {
@@ -147,7 +153,7 @@ const ProjectsPage: React.FC = () => {
     setForm({
       name: project.name,
       description: project.description || '',
-      clientId: project.client.id,
+      clientIds: project.clients?.map(pc => pc.client.id) || [],
       startDate: new Date(project.startDate),
       targetDate: project.targetDate ? new Date(project.targetDate) : null,
       hoursBudget: project.hoursBudget?.toString() || '',
@@ -220,6 +226,36 @@ const ProjectsPage: React.FC = () => {
     }
   }
 
+  const handleAddClients = async () => {
+    if (!detailProject || selectedClientsToAdd.length === 0) return
+    setSavingClients(true)
+    try {
+      await api.post(`/projects/${detailProject.id}/clients`, {
+        clientIds: selectedClientsToAdd.map(c => c.id),
+      })
+      setSelectedClientsToAdd([])
+      const response = await api.get(`/projects/${detailProject.id}`)
+      setDetailProject(response.data.data?.project || response.data.data)
+      toast.success('לקוחות שויכו לפרויקט בהצלחה')
+    } catch {
+      // error toast handled by api interceptor
+    } finally {
+      setSavingClients(false)
+    }
+  }
+
+  const handleRemoveClient = async (clientId: string) => {
+    if (!detailProject) return
+    try {
+      await api.delete(`/projects/${detailProject.id}/clients/${clientId}`)
+      const response = await api.get(`/projects/${detailProject.id}`)
+      setDetailProject(response.data.data?.project || response.data.data)
+      toast.success('הלקוח הוסר מהפרויקט')
+    } catch {
+      // error toast handled by api interceptor
+    }
+  }
+
   const handleDelete = (project: Project) => {
     setProjectToDelete(project)
     setDeleteDialogOpen(true)
@@ -246,27 +282,33 @@ const ProjectsPage: React.FC = () => {
   }
 
   const handleSubmit = async () => {
-    if (!form.name.trim() || !form.clientId) {
-      toast.error('שם פרויקט ולקוח הם שדות חובה')
+    if (!form.name.trim() || form.clientIds.length === 0) {
+      toast.error('שם פרויקט ולקוח אחד לפחות הם שדות חובה')
       return
     }
 
     setSaving(true)
     try {
-      const payload: Record<string, unknown> = {
-        name: form.name,
-        description: form.description || undefined,
-        clientId: form.clientId,
-        startDate: form.startDate?.toISOString(),
-        targetDate: form.targetDate?.toISOString() || undefined,
-        hoursBudget: form.hoursBudget ? parseFloat(form.hoursBudget) : undefined,
-      }
-
       if (isEditing && selectedProject) {
-        payload.status = form.status
+        const payload: Record<string, unknown> = {
+          name: form.name,
+          description: form.description || undefined,
+          startDate: form.startDate?.toISOString(),
+          targetDate: form.targetDate?.toISOString() || undefined,
+          hoursBudget: form.hoursBudget ? parseFloat(form.hoursBudget) : undefined,
+          status: form.status,
+        }
         await api.put(`/projects/${selectedProject.id}`, payload)
         toast.success('הפרויקט עודכן בהצלחה')
       } else {
+        const payload: Record<string, unknown> = {
+          name: form.name,
+          description: form.description || undefined,
+          clientIds: form.clientIds,
+          startDate: form.startDate?.toISOString(),
+          targetDate: form.targetDate?.toISOString() || undefined,
+          hoursBudget: form.hoursBudget ? parseFloat(form.hoursBudget) : undefined,
+        }
         await api.post('/projects', payload)
         toast.success('הפרויקט נוצר בהצלחה')
       }
@@ -338,7 +380,7 @@ const ProjectsPage: React.FC = () => {
                     <ProjectStatusChip status={project.status} />
                   </Box>
                   <Typography variant="body2" color="text.secondary" gutterBottom>
-                    {project.client?.name}
+                    {getClientNames(project)}
                   </Typography>
                   {project.description && (
                     <Typography variant="body2" color="text.secondary" sx={{
@@ -428,20 +470,24 @@ const ProjectsPage: React.FC = () => {
               rows={3}
               fullWidth
             />
-            <TextField
-              select
-              label="לקוח"
-              value={form.clientId}
-              onChange={(e) => setForm({ ...form, clientId: e.target.value })}
-              required
-              fullWidth
-            >
-              {clients.map((client) => (
-                <MenuItem key={client.id} value={client.id}>
-                  {client.name}
-                </MenuItem>
-              ))}
-            </TextField>
+            {!isEditing && (
+              <Autocomplete
+                multiple
+                options={clients}
+                getOptionLabel={(c) => c.name}
+                value={clients.filter(c => form.clientIds.includes(c.id))}
+                onChange={(_, val) => setForm({ ...form, clientIds: val.map(c => c.id) })}
+                renderInput={(params) => (
+                  <TextField {...params} label="לקוחות" required />
+                )}
+                noOptionsText="אין לקוחות"
+              />
+            )}
+            {isEditing && (
+              <Typography variant="body2" color="text.secondary">
+                ניהול לקוחות מתבצע דרך לשונית "לקוחות" בפרטי הפרויקט
+              </Typography>
+            )}
             <Box sx={{ display: 'flex', gap: 2 }}>
               <DatePicker
                 label="תאריך התחלה"
@@ -500,7 +546,7 @@ const ProjectsPage: React.FC = () => {
                 <Box>
                   <Typography variant="h6">{detailProject.name}</Typography>
                   <Typography variant="body2" color="text.secondary">
-                    {detailProject.client?.name}
+                    {getClientNames(detailProject)}
                   </Typography>
                 </Box>
                 <ProjectStatusChip status={detailProject.status} size="medium" />
@@ -538,6 +584,7 @@ const ProjectsPage: React.FC = () => {
               >
                 <Tab label={`משימות (${detailProject.tasks?.length || 0})`} />
                 <Tab label={`תגובות (${detailProject.comments?.length || 0})`} />
+                {!isClient && <Tab label={`לקוחות (${detailProject.clients?.length || 0})`} />}
                 {!isClient && <Tab label={`חברי צוות (${detailProject.assignedUsers?.length || 0})`} />}
               </Tabs>
 
@@ -645,8 +692,90 @@ const ProjectsPage: React.FC = () => {
                 </Box>
               )}
 
-              {/* Members Tab */}
+              {/* Clients Tab */}
               {detailTab === 2 && !isClient && (
+                <Box>
+                  {/* Add Clients */}
+                  <Box sx={{ display: 'flex', gap: 1, mb: 3, alignItems: 'flex-start' }}>
+                    <Autocomplete
+                      multiple
+                      size="small"
+                      options={clients.filter(
+                        (c) => !detailProject.clients?.some((pc) => pc.client.id === c.id)
+                      )}
+                      getOptionLabel={(c) => c.name}
+                      value={selectedClientsToAdd}
+                      onChange={(_, val) => setSelectedClientsToAdd(val)}
+                      renderInput={(params) => (
+                        <TextField {...params} placeholder="בחר לקוחות להוספה..." />
+                      )}
+                      sx={{ flex: 1 }}
+                      noOptionsText="אין לקוחות זמינים"
+                    />
+                    <Button
+                      variant="contained"
+                      onClick={handleAddClients}
+                      disabled={selectedClientsToAdd.length === 0 || savingClients}
+                      sx={{ minWidth: 100, mt: 0.25 }}
+                    >
+                      הוסף
+                    </Button>
+                  </Box>
+
+                  {/* Clients List */}
+                  {detailProject.clients && detailProject.clients.length > 0 ? (
+                    <TableContainer>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>שם לקוח</TableCell>
+                            <TableCell>איש קשר</TableCell>
+                            <TableCell>תאריך שיוך</TableCell>
+                            <TableCell padding="checkbox" />
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {detailProject.clients.map((pc: ProjectClientEntry) => (
+                            <TableRow key={pc.client.id}>
+                              <TableCell>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  {pc.client.name}
+                                  {pc.isPrimary && (
+                                    <Chip label="ראשי" size="small" color="primary" variant="outlined" />
+                                  )}
+                                </Box>
+                              </TableCell>
+                              <TableCell>{pc.client.contactPerson}</TableCell>
+                              <TableCell>
+                                {new Date(pc.assignedAt).toLocaleDateString('he-IL')}
+                              </TableCell>
+                              <TableCell padding="checkbox">
+                                {detailProject.clients.length > 1 && (
+                                  <IconButton
+                                    size="small"
+                                    color="error"
+                                    onClick={() => handleRemoveClient(pc.client.id)}
+                                    title="הסר לקוח מהפרויקט"
+                                  >
+                                    <PersonRemoveIcon fontSize="small" />
+                                  </IconButton>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
+                      אין לקוחות משויכים לפרויקט
+                    </Typography>
+                  )}
+                </Box>
+              )}
+
+              {/* Members Tab */}
+              {detailTab === 3 && !isClient && (
                 <Box>
                   {/* Add Members */}
                   <Box sx={{ display: 'flex', gap: 1, mb: 3, alignItems: 'flex-start' }}>

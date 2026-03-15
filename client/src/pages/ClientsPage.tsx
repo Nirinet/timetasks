@@ -386,13 +386,13 @@ const ClientsPage: React.FC = () => {
               </Typography>
               {detailClient.projects && detailClient.projects.length > 0 ? (
                 <List dense>
-                  {detailClient.projects.map((project: Project) => (
-                    <ListItem key={project.id}>
+                  {detailClient.projects.map((pc: any) => (
+                    <ListItem key={pc.project?.id || pc.id}>
                       <ListItemText
-                        primary={project.name}
-                        secondary={formatDate(project.startDate)}
+                        primary={pc.project?.name || pc.name}
+                        secondary={formatDate(pc.project?.startDate || pc.startDate)}
                       />
-                      <ProjectStatusChip status={project.status} />
+                      <ProjectStatusChip status={pc.project?.status || pc.status} />
                     </ListItem>
                   ))}
                 </List>

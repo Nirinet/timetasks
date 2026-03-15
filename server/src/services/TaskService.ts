@@ -220,14 +220,14 @@ export class TaskService {
         return false;
       }
 
-      const project = await this.prisma.project.findFirst({
+      const projectClient = await this.prisma.projectClient.findFirst({
         where: {
-          id: projectId,
+          projectId,
           clientId: clientEntityId
         }
       });
 
-      return !!project;
+      return !!projectClient;
     } catch (error) {
       logger.error('Error verifying project access:', error);
       return false;

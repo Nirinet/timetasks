@@ -3,6 +3,7 @@ import Joi from 'joi';
 import { prisma } from '../index';
 import { authenticateToken, requireAdminOrEmployee, AuthRequest } from '../middleware/auth';
 import { TaskService } from '../services/TaskService';
+import { AlertService } from '../services/AlertService';
 import { logger } from '../utils/logger';
 import {
   TASK_INCLUDE_LIST,
@@ -15,6 +16,7 @@ import {
 
 const router = express.Router();
 const taskService = new TaskService(prisma);
+const alertService = new AlertService(prisma);
 
 // Get tasks with filtering
 router.get('/', authenticateToken, async (req: AuthRequest, res, next) => {
@@ -140,8 +142,12 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
         project: {
           select: {
             name: true,
-            client: {
-              select: { name: true }
+            clients: {
+              include: {
+                client: {
+                  select: { name: true }
+                }
+              }
             }
           }
         },
@@ -239,6 +245,28 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
       });
     }
 
+    // CLIENT users can only change task status to specific values
+    if (req.user!.role === 'CLIENT') {
+      const allowedFields = ['status'];
+      const allowedStatuses = ['IN_PROGRESS', 'WAITING_CLIENT'];
+      const requestedFields = Object.keys(req.body);
+
+      const hasDisallowedFields = requestedFields.some(f => !allowedFields.includes(f));
+      if (hasDisallowedFields) {
+        return res.status(403).json({
+          success: false,
+          message: 'לקוח יכול לעדכן רק את סטטוס המשימה'
+        });
+      }
+
+      if (req.body.status && !allowedStatuses.includes(req.body.status)) {
+        return res.status(403).json({
+          success: false,
+          message: 'לקוח יכול לשנות סטטוס רק ל-"בטיפול" או "ממתין ללקוח"'
+        });
+      }
+    }
+
     const task = await prisma.task.update({
       where: { id: req.params.id },
       data: req.body,
@@ -247,6 +275,18 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
 
     // Record changes to history
     await taskService.recordChanges(req.params.id, req.user!.id, 'UPDATE', existingTask, req.body);
+
+    // Notify CLIENT users if status changed
+    if (req.body.status && req.body.status !== existingTask.status) {
+      alertService.notifyClientUsersOnStatusChange(
+        req.user!.id,
+        task.id,
+        existingTask.projectId,
+        task.project?.name ? `${task.project.name} - ${task.assignedUsers?.[0]?.user?.firstName || ''}` : existingTask.title || '',
+        existingTask.status,
+        req.body.status
+      ).catch(err => logger.error('Failed to notify clients on status change', err));
+    }
 
     await taskService.handleAutomation(task.id);
 

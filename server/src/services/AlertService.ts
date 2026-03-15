@@ -85,4 +85,63 @@ export class AlertService {
       logger.error('Error creating task alert:', error);
     }
   }
+
+  /**
+   * Notify CLIENT users when a task status changes in their linked projects.
+   * Finds all CLIENT-role users linked to the project's clients via ProjectClient.
+   */
+  async notifyClientUsersOnStatusChange(
+    senderId: string,
+    taskId: string,
+    projectId: string,
+    taskTitle: string,
+    oldStatus: string,
+    newStatus: string
+  ): Promise<void> {
+    try {
+      const statusLabels: Record<string, string> = {
+        NEW: 'חדש',
+        IN_PROGRESS: 'בטיפול',
+        WAITING_CLIENT: 'ממתין ללקוח',
+        COMPLETED: 'הושלם'
+      };
+
+      // Find all clients linked to this project
+      const projectClients = await this.prisma.projectClient.findMany({
+        where: { projectId },
+        select: { clientId: true }
+      });
+
+      if (projectClients.length === 0) return;
+
+      const clientIds = projectClients.map(pc => pc.clientId);
+
+      // Find all CLIENT-role users linked to these clients (exclude sender)
+      const clientUsers = await this.prisma.user.findMany({
+        where: {
+          role: 'CLIENT',
+          isActive: true,
+          clientEntityId: { in: clientIds },
+          id: { not: senderId }
+        },
+        select: { id: true }
+      });
+
+      if (clientUsers.length === 0) return;
+
+      const alerts = clientUsers.map(u => ({
+        type: 'STATUS_CHANGE' as const,
+        title: 'שינוי סטטוס משימה',
+        message: `המשימה "${taskTitle}" שונתה מ-"${statusLabels[oldStatus] || oldStatus}" ל-"${statusLabels[newStatus] || newStatus}"`,
+        receiverId: u.id,
+        senderId,
+        taskId,
+        projectId
+      }));
+
+      await this.prisma.alert.createMany({ data: alerts });
+    } catch (error) {
+      logger.error('Error notifying client users on status change:', error);
+    }
+  }
 }

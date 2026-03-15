@@ -621,7 +621,7 @@ const TasksPage: React.FC = () => {
                 <Box>
                   <Typography variant="h6">{taskDetail.title}</Typography>
                   <Typography variant="body2" color="text.secondary">
-                    {taskDetail.project?.name} {taskDetail.project?.client?.name && `• ${taskDetail.project.client.name}`}
+                    {taskDetail.project?.name} {taskDetail.project?.clients && taskDetail.project.clients.length > 0 && `• ${taskDetail.project.clients.map(pc => pc.client.name).join(', ')}`}
                   </Typography>
                 </Box>
                 <Box sx={{ display: 'flex', gap: 1 }}>

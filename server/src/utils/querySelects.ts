@@ -30,14 +30,34 @@ export const CLIENT_SELECT_DETAIL = {
   contactPerson: true
 } as const;
 
+// Project clients include (many-to-many via ProjectClient)
+export const PROJECT_CLIENTS_INCLUDE = {
+  clients: {
+    include: {
+      client: {
+        select: CLIENT_SELECT_DETAIL
+      }
+    }
+  }
+} as const;
+
+// Project clients include (basic — just names)
+export const PROJECT_CLIENTS_INCLUDE_BASIC = {
+  clients: {
+    include: {
+      client: {
+        select: CLIENT_SELECT_BASIC
+      }
+    }
+  }
+} as const;
+
 // Task include for list views (tasks list, project tasks)
 export const TASK_INCLUDE_LIST = {
   project: {
     select: {
       name: true,
-      client: {
-        select: CLIENT_SELECT_BASIC
-      }
+      ...PROJECT_CLIENTS_INCLUDE_BASIC
     }
   },
   assignedUsers: {
@@ -62,7 +82,10 @@ export const TASK_INCLUDE_LIST = {
 // Task include for create/update responses (lighter than list)
 export const TASK_INCLUDE_MUTATION = {
   project: {
-    select: { name: true }
+    select: {
+      name: true,
+      ...PROJECT_CLIENTS_INCLUDE_BASIC
+    }
   },
   assignedUsers: {
     include: {
@@ -82,9 +105,7 @@ export const TIME_RECORD_TASK_SELECT = {
   project: {
     select: {
       name: true,
-      client: {
-        select: CLIENT_SELECT_BASIC
-      }
+      ...PROJECT_CLIENTS_INCLUDE_BASIC
     }
   }
 } as const;
@@ -103,9 +124,7 @@ export const TIME_RECORD_TASK_SELECT_WITH_PROJECT_ID = {
 
 // Project include for list views
 export const PROJECT_INCLUDE_LIST = {
-  client: {
-    select: CLIENT_SELECT_DETAIL
-  },
+  ...PROJECT_CLIENTS_INCLUDE,
   createdBy: {
     select: USER_SELECT_BASIC
   },
@@ -125,12 +144,7 @@ export const PROJECT_INCLUDE_LIST = {
 
 // Project include for create/update responses
 export const PROJECT_INCLUDE_MUTATION = {
-  client: {
-    select: {
-      name: true,
-      contactPerson: true
-    }
-  },
+  ...PROJECT_CLIENTS_INCLUDE,
   createdBy: {
     select: USER_SELECT_BASIC
   }
@@ -159,13 +173,17 @@ export const COMMENT_INCLUDE_WITH_FILES = {
 
 /**
  * Apply CLIENT role filter to a task where clause.
- * Client users can only see tasks belonging to projects of their linked Client entity.
+ * Client users can only see tasks belonging to projects linked to their Client entity.
  */
 export function applyClientTaskFilter(whereClause: any, clientEntityId: string | null, role: UserRole): any {
   if (role === 'CLIENT') {
     whereClause.project = {
       ...whereClause.project,
-      clientId: clientEntityId ?? '__no_access__'
+      clients: {
+        some: {
+          clientId: clientEntityId ?? '__no_access__'
+        }
+      }
     };
   }
   return whereClause;
@@ -173,11 +191,15 @@ export function applyClientTaskFilter(whereClause: any, clientEntityId: string |
 
 /**
  * Apply CLIENT role filter for project access.
- * Clients can only see projects belonging to their linked Client entity.
+ * Clients can only see projects linked to their Client entity.
  */
 export function applyClientProjectFilter(whereClause: any, clientEntityId: string | null, role: UserRole): any {
   if (role === 'CLIENT') {
-    whereClause.clientId = clientEntityId ?? '__no_access__';
+    whereClause.clients = {
+      some: {
+        clientId: clientEntityId ?? '__no_access__'
+      }
+    };
   }
   return whereClause;
 }

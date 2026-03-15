@@ -93,14 +93,18 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
           }
         },
         projects: {
-          select: {
-            id: true,
-            name: true,
-            status: true,
-            startDate: true,
-            targetDate: true
+          include: {
+            project: {
+              select: {
+                id: true,
+                name: true,
+                status: true,
+                startDate: true,
+                targetDate: true
+              }
+            }
           },
-          orderBy: { startDate: 'desc' }
+          orderBy: { assignedAt: 'desc' }
         }
       }
     });
@@ -195,6 +199,7 @@ router.delete('/:id', authenticateToken, requireAdminOrEmployee, async (req: Aut
     }
 
     await prisma.taskAssignment.deleteMany({ where: { clientId: client.id } });
+    await prisma.projectClient.deleteMany({ where: { clientId: client.id } });
     await prisma.client.delete({ where: { id: req.params.id } });
 
     logger.info('Client deleted', { userId: req.user!.id, clientId: req.params.id });

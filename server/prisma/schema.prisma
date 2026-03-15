@@ -111,7 +111,7 @@ model Client {
   // Relations
   createdBy     User      @relation("ClientCreatedBy", fields: [createdById], references: [id])
   createdById   String
-  projects      Project[]
+  projects      ProjectClient[]
   assignedTasks TaskAssignment[]
   linkedUsers   User[]    @relation("UserClientEntity")
 
@@ -132,8 +132,7 @@ model Project {
   isTemplate  Boolean       @default(false)
 
   // Relations
-  client      Client    @relation(fields: [clientId], references: [id])
-  clientId    String
+  clients     ProjectClient[]
   createdBy   User      @relation("ProjectCreatedBy", fields: [createdById], references: [id])
   createdById String
   tasks       Task[]
@@ -143,7 +142,6 @@ model Project {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([clientId])
   @@index([status])
   @@map("projects")
 }
@@ -336,6 +334,24 @@ model ProjectAssignment {
   @@index([userId])
   @@index([projectId])
   @@map("project_assignments")
+}
+
+model ProjectClient {
+  id         String   @id @default(uuid())
+
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId  String
+  client     Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId   String
+
+  isPrimary  Boolean  @default(false)
+  assignedAt DateTime @default(now())
+  assignedBy String   // User ID who made the assignment
+
+  @@unique([projectId, clientId])
+  @@index([projectId])
+  @@index([clientId])
+  @@map("project_clients")
 }
 
 model SystemSettings {

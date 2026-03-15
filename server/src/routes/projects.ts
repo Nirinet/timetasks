@@ -59,7 +59,7 @@ router.post('/', authenticateToken, requireAdminOrEmployee, async (req: AuthRequ
     const schema = Joi.object({
       name: Joi.string().min(2).required(),
       description: Joi.string().optional(),
-      clientId: Joi.string().uuid().required(),
+      clientIds: Joi.array().items(Joi.string().uuid()).min(1).required(),
       startDate: Joi.date().optional(),
       targetDate: Joi.date().optional(),
       hoursBudget: Joi.number().positive().optional(),
@@ -74,24 +74,44 @@ router.post('/', authenticateToken, requireAdminOrEmployee, async (req: AuthRequ
       });
     }
 
-    // Verify client exists
-    const client = await prisma.client.findUnique({
-      where: { id: req.body.clientId }
+    const clientIds: string[] = req.body.clientIds;
+
+    // Verify all clients exist
+    const existingClients = await prisma.client.findMany({
+      where: { id: { in: clientIds } },
+      select: { id: true }
     });
 
-    if (!client) {
+    if (existingClients.length !== clientIds.length) {
       return res.status(404).json({
         success: false,
-        message: 'לקוח לא נמצא'
+        message: 'לקוח אחד או יותר לא נמצאו'
       });
     }
 
-    const project = await prisma.project.create({
-      data: {
-        ...req.body,
-        createdById: req.user!.id
-      },
-      include: PROJECT_INCLUDE_MUTATION
+    const { clientIds: _clientIds, ...projectData } = req.body;
+
+    const project = await prisma.$transaction(async (tx) => {
+      const newProject = await tx.project.create({
+        data: {
+          ...projectData,
+          createdById: req.user!.id
+        }
+      });
+
+      await tx.projectClient.createMany({
+        data: clientIds.map((clientId: string, index: number) => ({
+          projectId: newProject.id,
+          clientId,
+          isPrimary: index === 0,
+          assignedBy: req.user!.id
+        }))
+      });
+
+      return tx.project.findUnique({
+        where: { id: newProject.id },
+        include: PROJECT_INCLUDE_MUTATION
+      });
     });
 
     res.status(201).json({
@@ -115,13 +135,17 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
     const project = await prisma.project.findFirst({
       where: whereClause,
       include: {
-        client: {
-          select: {
-            id: true,
-            name: true,
-            contactPerson: true,
-            email: true,
-            phone: true
+        clients: {
+          include: {
+            client: {
+              select: {
+                id: true,
+                name: true,
+                contactPerson: true,
+                email: true,
+                phone: true
+              }
+            }
           }
         },
         createdBy: {
@@ -278,6 +302,10 @@ router.delete('/:id', authenticateToken, requireAdminOrEmployee, async (req: Aut
       // Delete alerts related to this project
       await tx.alert.deleteMany({ where: { projectId: project.id } });
 
+      // Delete project-client links and project assignments
+      await tx.projectClient.deleteMany({ where: { projectId: project.id } });
+      await tx.projectAssignment.deleteMany({ where: { projectId: project.id } });
+
       // Delete the project
       await tx.project.delete({ where: { id: project.id } });
     });
@@ -360,7 +388,7 @@ router.post('/:id/from-template', authenticateToken, requireAdminOrEmployee, asy
   try {
     const schema = Joi.object({
       name: Joi.string().min(2).required(),
-      clientId: Joi.string().uuid().required(),
+      clientIds: Joi.array().items(Joi.string().uuid()).min(1).required(),
       startDate: Joi.date().optional(),
       targetDate: Joi.date().optional(),
       adjustDates: Joi.boolean().default(true)
@@ -394,17 +422,31 @@ router.post('/:id/from-template', authenticateToken, requireAdminOrEmployee, asy
       });
     }
 
-    // Create new project from template
-    const newProject = await prisma.project.create({
-      data: {
-        name: req.body.name,
-        description: template.description,
-        clientId: req.body.clientId,
-        startDate: req.body.startDate || new Date(),
-        targetDate: req.body.targetDate,
-        hoursBudget: template.hoursBudget,
-        createdById: req.user!.id
-      }
+    const clientIds: string[] = req.body.clientIds;
+
+    // Create new project from template with clients
+    const newProject = await prisma.$transaction(async (tx) => {
+      const project = await tx.project.create({
+        data: {
+          name: req.body.name,
+          description: template.description,
+          startDate: req.body.startDate || new Date(),
+          targetDate: req.body.targetDate,
+          hoursBudget: template.hoursBudget,
+          createdById: req.user!.id
+        }
+      });
+
+      await tx.projectClient.createMany({
+        data: clientIds.map((clientId: string, index: number) => ({
+          projectId: project.id,
+          clientId,
+          isPrimary: index === 0,
+          assignedBy: req.user!.id
+        }))
+      });
+
+      return project;
     });
 
     // TODO: Create tasks from template (complex logic for task hierarchy)
@@ -414,6 +456,86 @@ router.post('/:id/from-template', authenticateToken, requireAdminOrEmployee, asy
       message: 'פרויקט נוצר מתבנית בהצלחה',
       data: { project: newProject }
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Add clients to project
+router.post('/:id/clients', authenticateToken, requireAdminOrEmployee, async (req: AuthRequest, res, next) => {
+  try {
+    const schema = Joi.object({
+      clientIds: Joi.array().items(Joi.string().uuid()).min(1).required()
+    });
+
+    const { error } = schema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ success: false, message: error.details[0].message });
+    }
+
+    const project = await prisma.project.findUnique({ where: { id: req.params.id } });
+    if (!project) {
+      return res.status(404).json({ success: false, message: 'פרויקט לא נמצא' });
+    }
+
+    const clientIds: string[] = req.body.clientIds;
+
+    // Filter out clients already assigned
+    const existing = await prisma.projectClient.findMany({
+      where: { projectId: req.params.id, clientId: { in: clientIds } },
+      select: { clientId: true }
+    });
+    const existingIds = new Set(existing.map(e => e.clientId));
+    const newClientIds = clientIds.filter(id => !existingIds.has(id));
+
+    if (newClientIds.length > 0) {
+      await prisma.projectClient.createMany({
+        data: newClientIds.map(clientId => ({
+          projectId: req.params.id,
+          clientId,
+          assignedBy: req.user!.id
+        }))
+      });
+    }
+
+    const projectClients = await prisma.projectClient.findMany({
+      where: { projectId: req.params.id },
+      include: { client: { select: { id: true, name: true, contactPerson: true } } }
+    });
+
+    res.json({
+      success: true,
+      message: 'לקוחות שויכו לפרויקט בהצלחה',
+      data: { clients: projectClients }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Remove client from project
+router.delete('/:id/clients/:clientId', authenticateToken, requireAdminOrEmployee, async (req: AuthRequest, res, next) => {
+  try {
+    // Prevent removing the last client
+    const count = await prisma.projectClient.count({
+      where: { projectId: req.params.id }
+    });
+
+    if (count <= 1) {
+      return res.status(400).json({
+        success: false,
+        message: 'לא ניתן להסיר את הלקוח האחרון מפרויקט'
+      });
+    }
+
+    await prisma.projectClient.deleteMany({
+      where: {
+        projectId: req.params.id,
+        clientId: req.params.clientId
+      }
+    });
+
+    res.json({ success: true, message: 'הלקוח הוסר מהפרויקט' });
   } catch (error) {
     next(error);
   }

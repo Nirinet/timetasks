@@ -45,6 +45,20 @@ export interface Client {
 // Project types
 export type ProjectStatus = 'ACTIVE' | 'ON_HOLD' | 'COMPLETED'
 
+export interface ProjectClientEntry {
+  id: string
+  projectId: string
+  clientId: string
+  isPrimary: boolean
+  assignedAt: string
+  assignedBy: string
+  client: {
+    id: string
+    name: string
+    contactPerson: string
+  }
+}
+
 export interface ProjectAssignment {
   id: string
   userId: string
@@ -68,11 +82,7 @@ export interface Project {
   status: ProjectStatus
   hoursBudget?: number
   isTemplate: boolean
-  client: {
-    id: string
-    name: string
-    contactPerson: string
-  }
+  clients: ProjectClientEntry[]
   createdBy: {
     firstName: string
     lastName: string
@@ -101,9 +111,11 @@ export interface Task {
   parentTaskId?: string
   project: {
     name: string
-    client?: {
-      name: string
-    }
+    clients?: {
+      client: {
+        name: string
+      }
+    }[]
   }
   assignedUsers: TaskAssignment[]
   parentTask?: {
@@ -308,7 +320,7 @@ export interface SearchResult {
     id: string
     name: string
     status: ProjectStatus
-    client: { name: string }
+    clients: { client: { name: string } }[]
   }[]
   clients: {
     id: string

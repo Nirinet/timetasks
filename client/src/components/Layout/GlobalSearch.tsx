@@ -191,7 +191,7 @@ const GlobalSearch: React.FC = () => {
                           </ListItemIcon>
                           <ListItemText
                             primary={project.name}
-                            secondary={project.client.name}
+                            secondary={project.clients?.map((pc: any) => pc.client.name).join(', ')}
                             primaryTypographyProps={{ noWrap: true, fontSize: '0.875rem' }}
                             secondaryTypographyProps={{ noWrap: true, fontSize: '0.75rem' }}
                           />
