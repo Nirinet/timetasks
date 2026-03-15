@@ -14,6 +14,11 @@ export interface User {
   emailNotifications: boolean
   timerAlerts: boolean
   language: string
+  clientEntityId?: string | null
+  clientEntity?: {
+    id: string
+    name: string
+  } | null
 }
 
 // Client types
@@ -40,6 +45,20 @@ export interface Client {
 // Project types
 export type ProjectStatus = 'ACTIVE' | 'ON_HOLD' | 'COMPLETED'
 
+export interface ProjectAssignment {
+  id: string
+  userId: string
+  projectId: string
+  assignedAt: string
+  assignedBy: string
+  user: {
+    id: string
+    firstName: string
+    lastName: string
+    role: UserRole
+  }
+}
+
 export interface Project {
   id: string
   name: string
@@ -58,6 +77,7 @@ export interface Project {
     firstName: string
     lastName: string
   }
+  assignedUsers?: ProjectAssignment[]
   tasks?: Task[]
   comments?: Comment[]
   _count?: {

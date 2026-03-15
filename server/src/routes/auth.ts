@@ -98,7 +98,9 @@ router.post('/login', loginRateLimiter, async (req, res, next) => {
         phone: true,
         emailNotifications: true,
         timerAlerts: true,
-        language: true
+        language: true,
+        clientEntityId: true,
+        clientEntity: { select: { id: true, name: true } }
       }
     });
 
@@ -325,7 +327,9 @@ router.get('/profile', authenticateToken, async (req: AuthRequest, res, next) =>
         emailNotifications: true,
         timerAlerts: true,
         language: true,
-        isActive: true
+        isActive: true,
+        clientEntityId: true,
+        clientEntity: { select: { id: true, name: true } }
       }
     });
 

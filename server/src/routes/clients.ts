@@ -112,20 +112,9 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
       });
     }
 
-    // Check permissions for client users
+    // Check permissions for client users — only their linked Client entity
     if (req.user!.role === 'CLIENT') {
-      const hasAccess = await prisma.taskAssignment.findFirst({
-        where: {
-          clientId: req.user!.id,
-          task: {
-            project: {
-              clientId: client.id
-            }
-          }
-        }
-      });
-
-      if (!hasAccess) {
+      if (req.user!.clientEntityId !== client.id) {
         return res.status(403).json({
           success: false,
           message: 'אין הרשאה לצפות בלקוח זה'

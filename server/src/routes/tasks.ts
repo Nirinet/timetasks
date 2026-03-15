@@ -24,7 +24,7 @@ router.get('/', authenticateToken, async (req: AuthRequest, res, next) => {
     let whereClause: any = {};
 
     // Apply client filter
-    applyClientTaskFilter(whereClause, req.user!.id, req.user!.role);
+    applyClientTaskFilter(whereClause, req.user!.clientEntityId, req.user!.role);
 
     if (projectId) whereClause.projectId = projectId;
     if (status) whereClause.status = status;
@@ -79,9 +79,9 @@ router.post('/', authenticateToken, async (req: AuthRequest, res, next) => {
 
     const { assignedUserIds = [], assignedClientIds = [], ...taskData } = req.body;
 
-    // Check permissions - clients can only create tasks in projects they're assigned to
+    // Check permissions - clients can only create tasks in projects of their linked Client entity
     if (req.user!.role === 'CLIENT') {
-      const hasAccess = await taskService.verifyProjectAccess(req.user!.id, taskData.projectId, req.user!.role);
+      const hasAccess = await taskService.verifyProjectAccess(req.user!.clientEntityId, taskData.projectId, req.user!.role);
       if (!hasAccess) {
         return res.status(403).json({
           success: false,
@@ -132,7 +132,7 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
   try {
     let whereClause: any = { id: req.params.id };
 
-    applyClientTaskFilter(whereClause, req.user!.id, req.user!.role);
+    applyClientTaskFilter(whereClause, req.user!.clientEntityId, req.user!.role);
 
     const task = await prisma.task.findFirst({
       where: whereClause,
@@ -229,7 +229,7 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
 
     // Get current task to check permissions
     let whereClause: any = { id: req.params.id };
-    applyClientTaskFilter(whereClause, req.user!.id, req.user!.role);
+    applyClientTaskFilter(whereClause, req.user!.clientEntityId, req.user!.role);
 
     const existingTask = await prisma.task.findFirst({ where: whereClause });
     if (!existingTask) {

@@ -34,6 +34,8 @@ import PageHeader from '@/components/PageHeader'
 import EmptyState from '@/components/EmptyState'
 import ConfirmDialog from '@/components/ConfirmDialog'
 
+import { Client } from '@/types'
+
 interface UserFormData {
   email: string
   password: string
@@ -42,6 +44,7 @@ interface UserFormData {
   phone: string
   role: UserRole
   isActive: boolean
+  clientEntityId: string
 }
 
 const emptyForm: UserFormData = {
@@ -52,6 +55,7 @@ const emptyForm: UserFormData = {
   phone: '',
   role: 'EMPLOYEE',
   isActive: true,
+  clientEntityId: '',
 }
 
 const UsersPage: React.FC = () => {
@@ -64,6 +68,16 @@ const UsersPage: React.FC = () => {
   const [saving, setSaving] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [userToDelete, setUserToDelete] = useState<User | null>(null)
+  const [clients, setClients] = useState<Client[]>([])
+
+  const fetchClients = async () => {
+    try {
+      const response = await api.get('/clients')
+      setClients(response.data.data?.clients || response.data.data || [])
+    } catch {
+      // ignore — dropdown will be empty
+    }
+  }
 
   const fetchUsers = async () => {
     try {
@@ -79,6 +93,7 @@ const UsersPage: React.FC = () => {
 
   useEffect(() => {
     fetchUsers()
+    fetchClients()
   }, [])
 
   const handleCreate = () => {
@@ -99,6 +114,7 @@ const UsersPage: React.FC = () => {
       phone: user.phone || '',
       role: user.role,
       isActive: user.isActive,
+      clientEntityId: user.clientEntityId || '',
     })
     setDialogOpen(true)
   }
@@ -148,6 +164,7 @@ const UsersPage: React.FC = () => {
           phone: form.phone || undefined,
           role: form.role,
           isActive: form.isActive,
+          clientEntityId: form.role === 'CLIENT' && form.clientEntityId ? form.clientEntityId : null,
         })
         toast.success('המשתמש עודכן בהצלחה')
       } else {
@@ -158,6 +175,7 @@ const UsersPage: React.FC = () => {
           lastName: form.lastName,
           phone: form.phone || undefined,
           role: form.role,
+          clientEntityId: form.role === 'CLIENT' && form.clientEntityId ? form.clientEntityId : null,
         })
         toast.success('המשתמש נוצר בהצלחה')
       }
@@ -189,6 +207,7 @@ const UsersPage: React.FC = () => {
                     <TableCell>דוא"ל</TableCell>
                     <TableCell>תפקיד</TableCell>
                     <TableCell>סטטוס</TableCell>
+                    <TableCell>לקוח משויך</TableCell>
                     <TableCell>טלפון</TableCell>
                     <TableCell>תאריך הצטרפות</TableCell>
                     <TableCell>פעולות</TableCell>
@@ -220,6 +239,7 @@ const UsersPage: React.FC = () => {
                           color={user.isActive ? 'success' : 'default'}
                         />
                       </TableCell>
+                      <TableCell>{user.clientEntity?.name || '-'}</TableCell>
                       <TableCell>{user.phone || '-'}</TableCell>
                       <TableCell>{formatDate(user.joinDate)}</TableCell>
                       <TableCell>
@@ -308,13 +328,28 @@ const UsersPage: React.FC = () => {
               select
               label="תפקיד"
               value={form.role}
-              onChange={(e) => setForm({ ...form, role: e.target.value as UserRole })}
+              onChange={(e) => setForm({ ...form, role: e.target.value as UserRole, clientEntityId: e.target.value !== 'CLIENT' ? '' : form.clientEntityId })}
               fullWidth
             >
               <MenuItem value="ADMIN">מנהל</MenuItem>
               <MenuItem value="EMPLOYEE">עובד</MenuItem>
               <MenuItem value="CLIENT">לקוח</MenuItem>
             </TextField>
+            {form.role === 'CLIENT' && (
+              <TextField
+                select
+                label="שיוך לישות לקוח"
+                value={form.clientEntityId}
+                onChange={(e) => setForm({ ...form, clientEntityId: e.target.value })}
+                fullWidth
+                helperText="בחר את הלקוח העסקי שהמשתמש משויך אליו"
+              >
+                <MenuItem value="">ללא שיוך</MenuItem>
+                {clients.map((c) => (
+                  <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+                ))}
+              </TextField>
+            )}
             {isEditing && (
               <FormControlLabel
                 control={

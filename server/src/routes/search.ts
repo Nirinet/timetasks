@@ -26,7 +26,7 @@ router.get('/', authenticateToken, async (req: AuthRequest, res, next) => {
       ]
     };
     if (isClient) {
-      taskWhere.assignedUsers = { some: { clientId: req.user!.id } };
+      taskWhere.project = { clientId: req.user!.clientEntityId ?? '__no_access__' };
     }
 
     const tasks = await prisma.task.findMany({
@@ -46,9 +46,7 @@ router.get('/', authenticateToken, async (req: AuthRequest, res, next) => {
       name: { contains: q, mode: 'insensitive' }
     };
     if (isClient) {
-      projectWhere.tasks = {
-        some: { assignedUsers: { some: { clientId: req.user!.id } } }
-      };
+      projectWhere.clientId = req.user!.clientEntityId ?? '__no_access__';
     }
 
     const projects = await prisma.project.findMany({

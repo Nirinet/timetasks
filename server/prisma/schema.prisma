@@ -75,9 +75,14 @@ model User {
   timerAlerts       Boolean @default(true)
   language          String  @default("he")
 
+  // Link CLIENT-role user to a Client business entity (optional)
+  clientEntity    Client?  @relation("UserClientEntity", fields: [clientEntityId], references: [id], onDelete: SetNull)
+  clientEntityId  String?
+
   // Relations
   createdClients    Client[]         @relation("ClientCreatedBy")
   assignedTasks     TaskAssignment[]
+  projectAssignments ProjectAssignment[]
   timeRecords       TimeRecord[]
   comments          Comment[]
   uploadedFiles     FileAttachment[]
@@ -88,6 +93,7 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([clientEntityId])
   @@map("users")
 }
 
@@ -107,6 +113,7 @@ model Client {
   createdById   String
   projects      Project[]
   assignedTasks TaskAssignment[]
+  linkedUsers   User[]    @relation("UserClientEntity")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -131,6 +138,7 @@ model Project {
   createdById String
   tasks       Task[]
   comments    Comment[]
+  assignedUsers ProjectAssignment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -310,6 +318,24 @@ model TaskChangeHistory {
 
   @@index([taskId])
   @@map("task_change_history")
+}
+
+model ProjectAssignment {
+  id        String   @id @default(uuid())
+
+  // Relations
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId String
+
+  assignedAt DateTime @default(now())
+  assignedBy String   // User ID who made the assignment
+
+  @@unique([userId, projectId])
+  @@index([userId])
+  @@index([projectId])
+  @@map("project_assignments")
 }
 
 model SystemSettings {

@@ -10,6 +10,7 @@ export interface AuthRequest extends Request {
     role: UserRole;
     firstName: string;
     lastName: string;
+    clientEntityId: string | null;
   };
 }
 
@@ -40,7 +41,8 @@ export const authenticateToken = async (
         firstName: true,
         lastName: true,
         role: true,
-        isActive: true
+        isActive: true,
+        clientEntityId: true
       }
     });
 

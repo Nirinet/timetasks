@@ -208,24 +208,26 @@ export class TaskService {
   /**
    * Verify that a user (by role) has access to a specific project.
    * ADMIN and EMPLOYEE have access to all projects.
-   * CLIENT users only have access if they have assigned tasks in the project.
+   * CLIENT users only have access if the project belongs to their linked Client entity.
    */
-  async verifyProjectAccess(userId: string, projectId: string, role: string): Promise<boolean> {
+  async verifyProjectAccess(clientEntityId: string | null, projectId: string, role: string): Promise<boolean> {
     try {
       if (role === 'ADMIN' || role === 'EMPLOYEE') {
         return true;
       }
 
-      const access = await this.prisma.taskAssignment.findFirst({
+      if (!clientEntityId) {
+        return false;
+      }
+
+      const project = await this.prisma.project.findFirst({
         where: {
-          clientId: userId,
-          task: {
-            projectId: projectId
-          }
+          id: projectId,
+          clientId: clientEntityId
         }
       });
 
-      return !!access;
+      return !!project;
     } catch (error) {
       logger.error('Error verifying project access:', error);
       return false;

@@ -109,6 +109,13 @@ export const PROJECT_INCLUDE_LIST = {
   createdBy: {
     select: USER_SELECT_BASIC
   },
+  assignedUsers: {
+    include: {
+      user: {
+        select: { id: true, firstName: true, lastName: true, role: true }
+      }
+    }
+  },
   _count: {
     select: {
       tasks: true
@@ -151,16 +158,14 @@ export const COMMENT_INCLUDE_WITH_FILES = {
 } as const;
 
 /**
- * Apply CLIENT role filter to a where clause.
- * Client users can only see tasks they are assigned to.
- * This pattern is used in tasks, projects, and clients routes.
+ * Apply CLIENT role filter to a task where clause.
+ * Client users can only see tasks belonging to projects of their linked Client entity.
  */
-export function applyClientTaskFilter(whereClause: any, userId: string, role: UserRole): any {
+export function applyClientTaskFilter(whereClause: any, clientEntityId: string | null, role: UserRole): any {
   if (role === 'CLIENT') {
-    whereClause.assignedUsers = {
-      some: {
-        clientId: userId
-      }
+    whereClause.project = {
+      ...whereClause.project,
+      clientId: clientEntityId ?? '__no_access__'
     };
   }
   return whereClause;
@@ -168,19 +173,11 @@ export function applyClientTaskFilter(whereClause: any, userId: string, role: Us
 
 /**
  * Apply CLIENT role filter for project access.
- * Clients can only see projects where they have assigned tasks.
+ * Clients can only see projects belonging to their linked Client entity.
  */
-export function applyClientProjectFilter(whereClause: any, userId: string, role: UserRole): any {
+export function applyClientProjectFilter(whereClause: any, clientEntityId: string | null, role: UserRole): any {
   if (role === 'CLIENT') {
-    whereClause.tasks = {
-      some: {
-        assignedUsers: {
-          some: {
-            clientId: userId
-          }
-        }
-      }
-    };
+    whereClause.clientId = clientEntityId ?? '__no_access__';
   }
   return whereClause;
 }

@@ -35,12 +35,10 @@ router.get('/', authenticateToken, async (req: AuthRequest, res, next) => {
     if (req.user!.role === 'EMPLOYEE') {
       whereClause.employeeId = req.user!.id;
     } else if (req.user!.role === 'CLIENT') {
-      // Clients can see time records for tasks assigned to them (read-only)
+      // Clients can see time records for tasks in their linked Client's projects
       whereClause.task = {
-        assignedUsers: {
-          some: {
-            clientId: req.user!.id
-          }
+        project: {
+          clientId: req.user!.clientEntityId ?? '__no_access__'
         }
       };
     }

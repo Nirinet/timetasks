@@ -21,7 +21,14 @@ router.get('/', authenticateToken, requireAdmin, async (req: AuthRequest, res, n
         isActive: true,
         joinDate: true,
         lastLogin: true,
-        phone: true
+        phone: true,
+        clientEntityId: true,
+        clientEntity: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
       },
       orderBy: { joinDate: 'desc' }
     });
@@ -44,7 +51,8 @@ router.post('/', authenticateToken, requireAdmin, async (req: AuthRequest, res, 
       firstName: Joi.string().min(2).required(),
       lastName: Joi.string().min(2).required(),
       phone: Joi.string().optional(),
-      role: Joi.string().valid('ADMIN', 'EMPLOYEE', 'CLIENT').required()
+      role: Joi.string().valid('ADMIN', 'EMPLOYEE', 'CLIENT').required(),
+      clientEntityId: Joi.string().uuid().optional().allow(null)
     });
 
     const { error } = schema.validate(req.body);
@@ -55,7 +63,15 @@ router.post('/', authenticateToken, requireAdmin, async (req: AuthRequest, res, 
       });
     }
 
-    const { email, password, firstName, lastName, phone, role } = req.body;
+    const { email, password, firstName, lastName, phone, role, clientEntityId } = req.body;
+
+    // Validate clientEntityId exists if provided
+    if (clientEntityId) {
+      const clientExists = await prisma.client.findUnique({ where: { id: clientEntityId } });
+      if (!clientExists) {
+        return res.status(400).json({ success: false, message: 'ישות הלקוח שנבחרה לא נמצאה' });
+      }
+    }
 
     // Check if user exists
     const existingUser = await prisma.user.findUnique({
@@ -79,7 +95,8 @@ router.post('/', authenticateToken, requireAdmin, async (req: AuthRequest, res, 
         firstName,
         lastName,
         phone,
-        role: role as UserRole
+        role: role as UserRole,
+        clientEntityId: role === 'CLIENT' ? clientEntityId || null : null
       },
       select: {
         id: true,
@@ -88,7 +105,9 @@ router.post('/', authenticateToken, requireAdmin, async (req: AuthRequest, res, 
         lastName: true,
         role: true,
         phone: true,
-        joinDate: true
+        joinDate: true,
+        clientEntityId: true,
+        clientEntity: { select: { id: true, name: true } }
       }
     });
 
@@ -110,7 +129,8 @@ router.put('/:id', authenticateToken, requireAdmin, async (req: AuthRequest, res
       lastName: Joi.string().min(2).optional(),
       phone: Joi.string().optional().allow('', null),
       role: Joi.string().valid('ADMIN', 'EMPLOYEE', 'CLIENT').optional(),
-      isActive: Joi.boolean().optional()
+      isActive: Joi.boolean().optional(),
+      clientEntityId: Joi.string().uuid().optional().allow(null)
     });
 
     const { error } = schema.validate(req.body);
@@ -121,9 +141,23 @@ router.put('/:id', authenticateToken, requireAdmin, async (req: AuthRequest, res
       });
     }
 
+    // Validate clientEntityId if provided
+    if (req.body.clientEntityId) {
+      const clientExists = await prisma.client.findUnique({ where: { id: req.body.clientEntityId } });
+      if (!clientExists) {
+        return res.status(400).json({ success: false, message: 'ישות הלקוח שנבחרה לא נמצאה' });
+      }
+    }
+
+    // Clear clientEntityId if role is not CLIENT
+    const updateData = { ...req.body };
+    if (updateData.role && updateData.role !== 'CLIENT') {
+      updateData.clientEntityId = null;
+    }
+
     const user = await prisma.user.update({
       where: { id: req.params.id },
-      data: req.body,
+      data: updateData,
       select: {
         id: true,
         email: true,
@@ -131,7 +165,9 @@ router.put('/:id', authenticateToken, requireAdmin, async (req: AuthRequest, res
         lastName: true,
         role: true,
         phone: true,
-        isActive: true
+        isActive: true,
+        clientEntityId: true,
+        clientEntity: { select: { id: true, name: true } }
       }
     });
 

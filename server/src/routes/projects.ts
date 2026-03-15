@@ -21,7 +21,7 @@ router.get('/', authenticateToken, async (req: AuthRequest, res, next) => {
     let whereClause: any = {};
 
     // Filter for client users - only their projects
-    applyClientProjectFilter(whereClause, req.user!.id, req.user!.role);
+    applyClientProjectFilter(whereClause, req.user!.clientEntityId, req.user!.role);
 
     // Optional status filter
     if (req.query.status) {
@@ -110,7 +110,7 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
     let whereClause: any = { id: req.params.id };
 
     // Check permissions for client users
-    applyClientProjectFilter(whereClause, req.user!.id, req.user!.role);
+    applyClientProjectFilter(whereClause, req.user!.clientEntityId, req.user!.role);
 
     const project = await prisma.project.findFirst({
       where: whereClause,
@@ -128,6 +128,13 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
           select: {
             firstName: true,
             lastName: true
+          }
+        },
+        assignedUsers: {
+          include: {
+            user: {
+              select: { id: true, firstName: true, lastName: true, role: true }
+            }
           }
         },
         tasks: {
@@ -157,13 +164,7 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
               }
             }
           },
-          where: req.user!.role === 'CLIENT' ? {
-            assignedUsers: {
-              some: {
-                clientId: req.user!.id
-              }
-            }
-          } : undefined,
+          where: undefined,
           orderBy: { creationDate: 'desc' }
         },
         comments: {
@@ -283,6 +284,72 @@ router.delete('/:id', authenticateToken, requireAdminOrEmployee, async (req: Aut
 
     logger.info('Project deleted', { userId: req.user!.id, projectId: req.params.id, projectName: project.name });
     res.json({ success: true, message: 'הפרויקט נמחק בהצלחה' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Add members to project
+router.post('/:id/members', authenticateToken, requireAdminOrEmployee, async (req: AuthRequest, res, next) => {
+  try {
+    const schema = Joi.object({
+      userIds: Joi.array().items(Joi.string().uuid()).min(1).required()
+    });
+
+    const { error } = schema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ success: false, message: error.details[0].message });
+    }
+
+    const project = await prisma.project.findUnique({ where: { id: req.params.id } });
+    if (!project) {
+      return res.status(404).json({ success: false, message: 'פרויקט לא נמצא' });
+    }
+
+    // Filter out users already assigned
+    const existing = await prisma.projectAssignment.findMany({
+      where: { projectId: req.params.id, userId: { in: req.body.userIds } },
+      select: { userId: true }
+    });
+    const existingIds = new Set(existing.map(e => e.userId));
+    const newUserIds = (req.body.userIds as string[]).filter(id => !existingIds.has(id));
+
+    if (newUserIds.length > 0) {
+      await prisma.projectAssignment.createMany({
+        data: newUserIds.map(userId => ({
+          userId,
+          projectId: req.params.id,
+          assignedBy: req.user!.id
+        }))
+      });
+    }
+
+    const assignments = await prisma.projectAssignment.findMany({
+      where: { projectId: req.params.id },
+      include: { user: { select: { id: true, firstName: true, lastName: true, role: true } } }
+    });
+
+    res.json({
+      success: true,
+      message: 'משתמשים שויכו לפרויקט בהצלחה',
+      data: { members: assignments }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Remove member from project
+router.delete('/:id/members/:userId', authenticateToken, requireAdminOrEmployee, async (req: AuthRequest, res, next) => {
+  try {
+    await prisma.projectAssignment.deleteMany({
+      where: {
+        projectId: req.params.id,
+        userId: req.params.userId
+      }
+    });
+
+    res.json({ success: true, message: 'המשתמש הוסר מהפרויקט' });
   } catch (error) {
     next(error);
   }

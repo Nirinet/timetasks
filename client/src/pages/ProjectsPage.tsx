@@ -26,16 +26,21 @@ import {
   Tab,
   Avatar,
   IconButton,
+  AvatarGroup,
+  Autocomplete,
+  Checkbox,
 } from '@mui/material'
 import { DatePicker } from '@mui/x-date-pickers/DatePicker'
 import FolderOpenIcon from '@mui/icons-material/FolderOpen'
 import DeleteIcon from '@mui/icons-material/Delete'
+import PersonAddIcon from '@mui/icons-material/PersonAdd'
+import PersonRemoveIcon from '@mui/icons-material/PersonRemove'
 import SendIcon from '@mui/icons-material/Send'
 import toast from 'react-hot-toast'
 
 import api from '@/services/api'
 import { useAuth } from '@/contexts/AuthContext'
-import { Project, Client, ProjectStatus, Task, Comment } from '@/types'
+import { Project, Client, User, ProjectStatus, Task, Comment, ProjectAssignment } from '@/types'
 import { formatDate } from '@/utils/formatters'
 import ProjectStatusChip from '@/components/ProjectStatusChip'
 import StatusChip from '@/components/StatusChip'
@@ -84,6 +89,9 @@ const ProjectsPage: React.FC = () => {
   const [detailTab, setDetailTab] = useState(0)
   const [newComment, setNewComment] = useState('')
   const [sendingComment, setSendingComment] = useState(false)
+  const [allUsers, setAllUsers] = useState<User[]>([])
+  const [selectedUsersToAdd, setSelectedUsersToAdd] = useState<User[]>([])
+  const [savingMembers, setSavingMembers] = useState(false)
 
   const fetchProjects = async () => {
     try {
@@ -109,9 +117,21 @@ const ProjectsPage: React.FC = () => {
     }
   }
 
+  const fetchUsers = async () => {
+    try {
+      const response = await api.get('/users')
+      setAllUsers(response.data.data?.users || response.data.data || [])
+    } catch {
+      // silent
+    }
+  }
+
   useEffect(() => {
     fetchProjects()
-    if (!isClient) fetchClients()
+    if (!isClient) {
+      fetchClients()
+      fetchUsers()
+    }
   }, [statusFilter])
 
   const handleCreate = () => {
@@ -165,6 +185,38 @@ const ProjectsPage: React.FC = () => {
       // error toast handled by api interceptor
     } finally {
       setSendingComment(false)
+    }
+  }
+
+  const handleAddMembers = async () => {
+    if (!detailProject || selectedUsersToAdd.length === 0) return
+    setSavingMembers(true)
+    try {
+      await api.post(`/projects/${detailProject.id}/members`, {
+        userIds: selectedUsersToAdd.map(u => u.id),
+      })
+      setSelectedUsersToAdd([])
+      // Refresh project details
+      const response = await api.get(`/projects/${detailProject.id}`)
+      setDetailProject(response.data.data?.project || response.data.data)
+      toast.success('משתמשים שויכו לפרויקט בהצלחה')
+    } catch {
+      // error toast handled by api interceptor
+    } finally {
+      setSavingMembers(false)
+    }
+  }
+
+  const handleRemoveMember = async (userId: string) => {
+    if (!detailProject) return
+    try {
+      await api.delete(`/projects/${detailProject.id}/members/${userId}`)
+      // Refresh project details
+      const response = await api.get(`/projects/${detailProject.id}`)
+      setDetailProject(response.data.data?.project || response.data.data)
+      toast.success('המשתמש הוסר מהפרויקט')
+    } catch {
+      // error toast handled by api interceptor
     }
   }
 
@@ -310,10 +362,19 @@ const ProjectsPage: React.FC = () => {
                       </Typography>
                     )}
                   </Box>
-                  <Box sx={{ display: 'flex', gap: 2, mt: 1 }}>
+                  <Box sx={{ display: 'flex', gap: 2, mt: 1, alignItems: 'center' }}>
                     <Chip label={`${project._count?.tasks || 0} משימות`} size="small" variant="outlined" />
                     {project.hoursBudget != null && (
                       <Chip label={`${project.hoursBudget} שעות`} size="small" variant="outlined" />
+                    )}
+                    {project.assignedUsers && project.assignedUsers.length > 0 && (
+                      <AvatarGroup max={3} sx={{ '& .MuiAvatar-root': { width: 24, height: 24, fontSize: '0.7rem' } }}>
+                        {project.assignedUsers.map((a) => (
+                          <Avatar key={a.user.id} title={`${a.user.firstName} ${a.user.lastName}`}>
+                            {a.user.firstName.charAt(0)}
+                          </Avatar>
+                        ))}
+                      </AvatarGroup>
                     )}
                   </Box>
                 </CardContent>
@@ -477,6 +538,7 @@ const ProjectsPage: React.FC = () => {
               >
                 <Tab label={`משימות (${detailProject.tasks?.length || 0})`} />
                 <Tab label={`תגובות (${detailProject.comments?.length || 0})`} />
+                {!isClient && <Tab label={`חברי צוות (${detailProject.assignedUsers?.length || 0})`} />}
               </Tabs>
 
               {/* Tasks Tab */}
@@ -580,6 +642,96 @@ const ProjectsPage: React.FC = () => {
                       <SendIcon />
                     </IconButton>
                   </Box>
+                </Box>
+              )}
+
+              {/* Members Tab */}
+              {detailTab === 2 && !isClient && (
+                <Box>
+                  {/* Add Members */}
+                  <Box sx={{ display: 'flex', gap: 1, mb: 3, alignItems: 'flex-start' }}>
+                    <Autocomplete
+                      multiple
+                      size="small"
+                      options={allUsers.filter(
+                        (u) =>
+                          u.isActive &&
+                          u.role !== 'CLIENT' &&
+                          !detailProject.assignedUsers?.some((a) => a.user.id === u.id)
+                      )}
+                      getOptionLabel={(u) => `${u.firstName} ${u.lastName}`}
+                      value={selectedUsersToAdd}
+                      onChange={(_, val) => setSelectedUsersToAdd(val)}
+                      renderInput={(params) => (
+                        <TextField {...params} placeholder="בחר משתמשים להוספה..." />
+                      )}
+                      sx={{ flex: 1 }}
+                      noOptionsText="אין משתמשים זמינים"
+                    />
+                    <Button
+                      variant="contained"
+                      startIcon={<PersonAddIcon />}
+                      onClick={handleAddMembers}
+                      disabled={selectedUsersToAdd.length === 0 || savingMembers}
+                      sx={{ minWidth: 100, mt: 0.25 }}
+                    >
+                      הוסף
+                    </Button>
+                  </Box>
+
+                  {/* Members List */}
+                  {detailProject.assignedUsers && detailProject.assignedUsers.length > 0 ? (
+                    <TableContainer>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>שם</TableCell>
+                            <TableCell>תפקיד</TableCell>
+                            <TableCell>תאריך שיוך</TableCell>
+                            <TableCell padding="checkbox" />
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {detailProject.assignedUsers.map((assignment: ProjectAssignment) => (
+                            <TableRow key={assignment.user.id}>
+                              <TableCell>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  <Avatar sx={{ width: 28, height: 28, fontSize: '0.8rem', bgcolor: 'primary.main' }}>
+                                    {assignment.user.firstName.charAt(0)}
+                                  </Avatar>
+                                  {assignment.user.firstName} {assignment.user.lastName}
+                                </Box>
+                              </TableCell>
+                              <TableCell>
+                                <Chip
+                                  label={assignment.user.role === 'ADMIN' ? 'מנהל' : 'עובד'}
+                                  size="small"
+                                  variant="outlined"
+                                />
+                              </TableCell>
+                              <TableCell>
+                                {new Date(assignment.assignedAt).toLocaleDateString('he-IL')}
+                              </TableCell>
+                              <TableCell padding="checkbox">
+                                <IconButton
+                                  size="small"
+                                  color="error"
+                                  onClick={() => handleRemoveMember(assignment.user.id)}
+                                  title="הסר מהפרויקט"
+                                >
+                                  <PersonRemoveIcon fontSize="small" />
+                                </IconButton>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
+                      אין חברי צוות משויכים לפרויקט
+                    </Typography>
+                  )}
                 </Box>
               )}
             </DialogContent>

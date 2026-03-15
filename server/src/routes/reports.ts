@@ -21,11 +21,11 @@ router.get('/hours', authenticateToken, async (req: AuthRequest, res, next) => {
       status: 'COMPLETED'
     };
 
-    // CLIENT: filter to tasks assigned to them
+    // CLIENT: filter to tasks in their linked Client's projects
     if (req.user!.role === 'CLIENT') {
       whereClause.task = {
-        assignedUsers: {
-          some: { clientId: req.user!.id }
+        project: {
+          clientId: req.user!.clientEntityId ?? '__no_access__'
         }
       };
     }
@@ -164,15 +164,9 @@ router.get('/project-status', authenticateToken, async (req: AuthRequest, res, n
     let whereClause: any = {};
     if (status) whereClause.status = status;
 
-    // CLIENT: filter to projects where they have assigned tasks
+    // CLIENT: filter to projects belonging to their linked Client entity
     if (req.user!.role === 'CLIENT') {
-      whereClause.tasks = {
-        some: {
-          assignedUsers: {
-            some: { clientId: req.user!.id }
-          }
-        }
-      };
+      whereClause.clientId = req.user!.clientEntityId ?? '__no_access__';
     }
 
     // Fetch projects with pagination
@@ -350,10 +344,10 @@ router.get('/open-tasks', authenticateToken, async (req: AuthRequest, res, next)
       status: { not: 'COMPLETED' }
     };
 
-    // CLIENT: filter to their assigned tasks
+    // CLIENT: filter to tasks in their linked Client's projects
     if (req.user!.role === 'CLIENT') {
-      whereClause.assignedUsers = {
-        some: { clientId: req.user!.id }
+      whereClause.project = {
+        clientId: req.user!.clientEntityId ?? '__no_access__'
       };
     }
 
