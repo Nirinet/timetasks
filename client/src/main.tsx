@@ -10,11 +10,15 @@ import { LocalizationProvider } from '@mui/x-date-pickers'
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFnsV3'
 import { he } from 'date-fns/locale'
 
+import { GoogleOAuthProvider } from '@react-oauth/google'
+
 import App from './App.tsx'
 import ErrorBoundary from './components/ErrorBoundary'
 import { AuthProvider } from './contexts/AuthContext'
 import { SocketProvider } from './contexts/SocketContext'
 import theme from './theme/theme'
+
+const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
 
 // Create a client with better default options
 const queryClient = new QueryClient({
@@ -34,6 +38,7 @@ const queryClient = new QueryClient({
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ErrorBoundary>
+      <GoogleOAuthProvider clientId={googleClientId}>
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
           <ThemeProvider theme={theme}>
@@ -72,6 +77,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           </ThemeProvider>
         </BrowserRouter>
       </QueryClientProvider>
+      </GoogleOAuthProvider>
     </ErrorBoundary>
   </React.StrictMode>,
 )

@@ -11,13 +11,16 @@ import {
   Divider,
 } from '@mui/material'
 import toast from 'react-hot-toast'
+import { GoogleLogin, CredentialResponse } from '@react-oauth/google'
 
 import api from '@/services/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { getRoleLabel, formatDate } from '@/utils/formatters'
 
 const ProfilePage: React.FC = () => {
-  const { user, updateProfile, logout } = useAuth()
+  const { user, updateProfile, logout, linkGoogle, unlinkGoogle } = useAuth()
+  const [linkingGoogle, setLinkingGoogle] = useState(false)
+  const [unlinkingGoogle, setUnlinkingGoogle] = useState(false)
 
   const [profileForm, setProfileForm] = useState({
     firstName: '',
@@ -284,6 +287,82 @@ const ProfilePage: React.FC = () => {
               }}
             />
           </Box>
+        </Box>
+      </Card>
+
+      {/* Google Account Linking */}
+      <Card
+        sx={{
+          borderRadius: '12px',
+          border: '1px solid #e2e8f0',
+          boxShadow: '0 1px 2px 0 rgba(0,0,0,0.05)',
+          mb: 3,
+          overflow: 'hidden',
+        }}
+      >
+        <Box sx={{ p: 3, borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: 1 }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 22, color: '#2d7b95' }}>account_circle</span>
+          <Typography sx={{ fontSize: '1.125rem', fontWeight: 700, color: '#0f172a' }}>
+            חשבון Google
+          </Typography>
+        </Box>
+        <Box sx={{ p: 3 }}>
+          {user?.googleId ? (
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <Box sx={{
+                  width: 40, height: 40, borderRadius: '50%',
+                  bgcolor: '#d1fae5', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 20, color: '#16a34a' }}>check_circle</span>
+                </Box>
+                <Box>
+                  <Typography sx={{ fontSize: '0.9375rem', fontWeight: 600, color: '#0f172a' }}>
+                    חשבון Google מקושר
+                  </Typography>
+                  <Typography sx={{ fontSize: '0.8125rem', color: '#64748b' }}>
+                    ניתן להתחבר למערכת באמצעות Google
+                  </Typography>
+                </Box>
+              </Box>
+              <Button
+                variant="outlined"
+                color="error"
+                size="small"
+                onClick={async () => {
+                  setUnlinkingGoogle(true)
+                  try { await unlinkGoogle() } catch {} finally { setUnlinkingGoogle(false) }
+                }}
+                disabled={unlinkingGoogle}
+                sx={{ borderRadius: '8px', fontWeight: 600 }}
+              >
+                {unlinkingGoogle ? 'מבטל...' : 'בטל קישור'}
+              </Button>
+            </Box>
+          ) : (
+            <Box>
+              <Typography sx={{ fontSize: '0.9375rem', color: '#64748b', mb: 2 }}>
+                קשר את חשבון Google שלך כדי להתחבר למערכת בקלות
+              </Typography>
+              {linkingGoogle ? (
+                <Button variant="outlined" disabled sx={{ borderRadius: '8px' }}>
+                  מקשר...
+                </Button>
+              ) : (
+                <GoogleLogin
+                  onSuccess={async (credentialResponse: CredentialResponse) => {
+                    if (!credentialResponse.credential) return
+                    setLinkingGoogle(true)
+                    try { await linkGoogle(credentialResponse.credential) } catch {} finally { setLinkingGoogle(false) }
+                  }}
+                  onError={() => toast.error('קישור חשבון Google נכשל')}
+                  theme="outline"
+                  size="large"
+                  text="signin_with"
+                />
+              )}
+            </Box>
+          )}
         </Box>
       </Card>
 

@@ -13,7 +13,9 @@ import {
   Checkbox,
   FormControlLabel,
 } from '@mui/material'
+import { GoogleLogin, CredentialResponse } from '@react-oauth/google'
 import { useAuth } from '@/contexts/AuthContext'
+import logoSrc from '@/assets/logo.svg'
 
 const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('')
@@ -21,9 +23,10 @@ const LoginPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [googleLoading, setGoogleLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const { login } = useAuth()
+  const { login, loginWithGoogle } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -39,6 +42,25 @@ const LoginPage: React.FC = () => {
       setError('אירעה שגיאה בהתחברות')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleGoogleSuccess = async (credentialResponse: CredentialResponse) => {
+    if (!credentialResponse.credential) {
+      setError('לא התקבל אסימון מ-Google')
+      return
+    }
+    setError('')
+    setGoogleLoading(true)
+    try {
+      const success = await loginWithGoogle(credentialResponse.credential)
+      if (!success) {
+        setError('אינך רשום למערכת')
+      }
+    } catch {
+      setError('אירעה שגיאה בהתחברות עם Google')
+    } finally {
+      setGoogleLoading(false)
     }
   }
 
@@ -77,23 +99,7 @@ const LoginPage: React.FC = () => {
         }}
       >
         <Box />
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Typography sx={{ fontSize: '1.25rem', fontWeight: 800, color: '#2d7b95' }}>TimeTask</Typography>
-          <Box
-            sx={{
-              width: 36,
-              height: 36,
-              borderRadius: '8px',
-              bgcolor: '#2d7b95',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'white',
-            }}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: 20 }}>schedule</span>
-          </Box>
-        </Box>
+        <Box component="img" src={logoSrc} alt="TimeTask" sx={{ height: 36, width: 'auto' }} />
       </Box>
 
       {/* Main content */}
@@ -284,6 +290,44 @@ const LoginPage: React.FC = () => {
                 {loading ? <CircularProgress size={24} color="inherit" /> : 'התחבר'}
               </Button>
             </form>
+
+            {/* Google Sign-In Divider */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, my: 3 }}>
+              <Box sx={{ flex: 1, height: '1px', bgcolor: '#e2e8f0' }} />
+              <Typography sx={{ fontSize: '0.8125rem', color: '#94a3b8', whiteSpace: 'nowrap' }}>
+                או
+              </Typography>
+              <Box sx={{ flex: 1, height: '1px', bgcolor: '#e2e8f0' }} />
+            </Box>
+
+            {/* Google Sign-In Button */}
+            {googleLoading ? (
+              <Button
+                fullWidth
+                variant="outlined"
+                disabled
+                sx={{
+                  py: 1.25,
+                  borderRadius: '8px',
+                  borderColor: '#e2e8f0',
+                  color: '#94a3b8',
+                }}
+              >
+                <CircularProgress size={20} sx={{ ml: 1 }} />
+                מתחבר עם Google...
+              </Button>
+            ) : (
+              <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={() => setError('ההתחברות עם Google נכשלה')}
+                  theme="outline"
+                  size="large"
+                  width="352"
+                  text="signin_with"
+                />
+              </Box>
+            )}
 
             {/* Footer */}
             <Box sx={{ mt: 4, pt: 3, borderTop: '1px solid #e2e8f0', textAlign: 'center' }}>

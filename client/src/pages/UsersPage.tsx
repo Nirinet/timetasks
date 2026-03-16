@@ -252,7 +252,7 @@ const UsersPage: React.FC = () => {
           <EmptyState title="אין משתמשים" subtitle="הוסף משתמש חדש כדי להתחיל" />
         ) : (
           <TableContainer sx={{ overflowX: 'auto' }}>
-            <Table sx={{ minWidth: 700 }}>
+            <Table sx={{ minWidth: 800 }}>
               <TableHead>
                 <TableRow>
                   <TableCell sx={{ bgcolor: 'rgba(45,123,149,0.05)', color: 'rgba(45,123,149,0.7)', fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>שם משתמש</TableCell>
@@ -260,6 +260,7 @@ const UsersPage: React.FC = () => {
                   <TableCell sx={{ bgcolor: 'rgba(45,123,149,0.05)', color: 'rgba(45,123,149,0.7)', fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>תפקיד</TableCell>
                   <TableCell sx={{ bgcolor: 'rgba(45,123,149,0.05)', color: 'rgba(45,123,149,0.7)', fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>סטטוס</TableCell>
                   <TableCell sx={{ bgcolor: 'rgba(45,123,149,0.05)', color: 'rgba(45,123,149,0.7)', fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>טלפון</TableCell>
+                  <TableCell sx={{ bgcolor: 'rgba(45,123,149,0.05)', color: 'rgba(45,123,149,0.7)', fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Google</TableCell>
                   <TableCell sx={{ bgcolor: 'rgba(45,123,149,0.05)', color: 'rgba(45,123,149,0.7)', fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>תאריך הצטרפות</TableCell>
                   <TableCell sx={{ bgcolor: 'rgba(45,123,149,0.05)', color: 'rgba(45,123,149,0.7)', fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>פעולות</TableCell>
                 </TableRow>
@@ -306,6 +307,16 @@ const UsersPage: React.FC = () => {
                         </Box>
                       </TableCell>
                       <TableCell sx={{ fontSize: '0.875rem', color: 'rgba(45,123,149,0.8)' }} dir="ltr">{u.phone || '-'}</TableCell>
+                      <TableCell>
+                        {u.googleId ? (
+                          <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, px: 1, py: 0.25, borderRadius: '9999px', bgcolor: '#d1fae5', color: '#047857', fontSize: '0.6875rem', fontWeight: 600 }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>check</span>
+                            מקושר
+                          </Box>
+                        ) : (
+                          <Typography sx={{ fontSize: '0.75rem', color: '#94a3b8' }}>-</Typography>
+                        )}
+                      </TableCell>
                       <TableCell sx={{ fontSize: '0.875rem', color: 'rgba(45,123,149,0.8)' }}>{formatDate(u.joinDate)}</TableCell>
                       <TableCell>
                         <Box sx={{ display: 'flex', justifyContent: 'center', gap: 0.5 }}>
@@ -322,6 +333,23 @@ const UsersPage: React.FC = () => {
                           >
                             <span className="material-symbols-outlined" style={{ fontSize: 18 }}>{u.isActive ? 'person_off' : 'person_check'}</span>
                           </IconButton>
+                          {u.googleId && (
+                            <IconButton
+                              size="small"
+                              onClick={async (e) => {
+                                e.stopPropagation()
+                                try {
+                                  await api.post('/auth/unlink-google', { userId: u.id })
+                                  toast.success('קישור Google בוטל בהצלחה')
+                                  fetchUsers()
+                                } catch {}
+                              }}
+                              sx={{ color: 'rgba(45,123,149,0.6)', '&:hover': { bgcolor: 'rgba(45,123,149,0.1)' } }}
+                              title="בטל קישור Google"
+                            >
+                              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>link_off</span>
+                            </IconButton>
+                          )}
                         </Box>
                       </TableCell>
                     </TableRow>

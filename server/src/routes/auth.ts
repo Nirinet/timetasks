@@ -3,10 +3,13 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import Joi from 'joi';
+import { OAuth2Client } from 'google-auth-library';
 import { prisma, emailService } from '../index';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { loginRateLimiter, resetLoginAttempts } from '../middleware/loginRateLimiter';
 import { logger } from '../utils/logger';
+
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const router = express.Router();
 
@@ -161,6 +164,202 @@ router.post('/login', loginRateLimiter, async (req, res, next) => {
         refreshToken
       }
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Google Sign-In
+router.post('/google', loginRateLimiter, async (req, res, next) => {
+  try {
+    const schema = Joi.object({
+      credential: Joi.string().required().messages({
+        'any.required': 'אסימון Google חסר'
+      })
+    });
+
+    const { error } = schema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ success: false, message: error.details[0].message });
+    }
+
+    const { credential } = req.body;
+
+    // Verify Google ID token
+    let payload;
+    try {
+      const ticket = await googleClient.verifyIdToken({
+        idToken: credential,
+        audience: process.env.GOOGLE_CLIENT_ID,
+      });
+      payload = ticket.getPayload();
+    } catch (err) {
+      logger.warn('Invalid Google ID token', { ip: req.ip });
+      return res.status(401).json({ success: false, message: 'אסימון Google לא תקין' });
+    }
+
+    if (!payload || !payload.sub) {
+      return res.status(401).json({ success: false, message: 'אסימון Google לא תקין' });
+    }
+
+    const googleId = payload.sub;
+
+    // Find user by googleId
+    const user = await prisma.user.findUnique({
+      where: { googleId },
+      select: {
+        id: true,
+        email: true,
+        password: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        isActive: true,
+        phone: true,
+        emailNotifications: true,
+        timerAlerts: true,
+        language: true,
+        clientEntityId: true,
+        clientEntity: { select: { id: true, name: true } }
+      }
+    });
+
+    if (!user) {
+      logger.warn('Google login attempt - user not linked', { googleId, email: payload.email, ip: req.ip });
+      return res.status(401).json({ success: false, message: 'אינך רשום למערכת' });
+    }
+
+    if (!user.isActive) {
+      logger.warn('Google login attempt on inactive account', { googleId, email: user.email, ip: req.ip });
+      return res.status(401).json({ success: false, message: 'החשבון אינו פעיל. פנה למנהל המערכת' });
+    }
+
+    // Reset login attempts on successful login
+    const clientIp = req.ip || 'unknown';
+    resetLoginAttempts(clientIp, user.email);
+
+    // Generate tokens
+    const { accessToken, refreshToken } = generateTokens(user.id);
+
+    // Update last login
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { lastLogin: new Date() }
+    });
+
+    logger.info('User logged in via Google', { userId: user.id, email: user.email, ip: req.ip });
+
+    const { password: _, ...userWithoutPassword } = user;
+
+    res.json({
+      success: true,
+      message: 'התחברות בוצעה בהצלחה',
+      data: { user: userWithoutPassword, accessToken, refreshToken }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Link Google account to current user
+router.post('/link-google', authenticateToken, async (req: AuthRequest, res, next) => {
+  try {
+    const schema = Joi.object({
+      credential: Joi.string().required().messages({
+        'any.required': 'אסימון Google חסר'
+      })
+    });
+
+    const { error } = schema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ success: false, message: error.details[0].message });
+    }
+
+    const { credential } = req.body;
+
+    let payload;
+    try {
+      const ticket = await googleClient.verifyIdToken({
+        idToken: credential,
+        audience: process.env.GOOGLE_CLIENT_ID,
+      });
+      payload = ticket.getPayload();
+    } catch (err) {
+      return res.status(400).json({ success: false, message: 'אסימון Google לא תקין' });
+    }
+
+    if (!payload || !payload.sub) {
+      return res.status(400).json({ success: false, message: 'אסימון Google לא תקין' });
+    }
+
+    const googleId = payload.sub;
+
+    // Check if this googleId is already linked to another user
+    const existingLink = await prisma.user.findUnique({
+      where: { googleId },
+      select: { id: true }
+    });
+
+    if (existingLink) {
+      if (existingLink.id === req.user!.id) {
+        return res.status(400).json({ success: false, message: 'חשבון Google זה כבר מקושר לחשבונך' });
+      }
+      return res.status(409).json({ success: false, message: 'חשבון Google זה כבר מקושר למשתמש אחר' });
+    }
+
+    await prisma.user.update({
+      where: { id: req.user!.id },
+      data: { googleId }
+    });
+
+    logger.info('Google account linked', { userId: req.user!.id, email: req.user!.email, googleEmail: payload.email });
+
+    res.json({ success: true, message: 'חשבון Google קושר בהצלחה' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Unlink Google account
+router.post('/unlink-google', authenticateToken, async (req: AuthRequest, res, next) => {
+  try {
+    const schema = Joi.object({
+      userId: Joi.string().uuid().optional()
+    });
+
+    const { error } = schema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ success: false, message: error.details[0].message });
+    }
+
+    const targetUserId = req.body.userId || req.user!.id;
+
+    // If unlinking another user, require admin
+    if (targetUserId !== req.user!.id && req.user!.role !== 'ADMIN') {
+      return res.status(403).json({ success: false, message: 'רק מנהל יכול לבטל קישור Google של משתמש אחר' });
+    }
+
+    const targetUser = await prisma.user.findUnique({
+      where: { id: targetUserId },
+      select: { id: true, email: true, googleId: true }
+    });
+
+    if (!targetUser) {
+      return res.status(404).json({ success: false, message: 'משתמש לא נמצא' });
+    }
+
+    if (!targetUser.googleId) {
+      return res.status(400).json({ success: false, message: 'למשתמש זה אין חשבון Google מקושר' });
+    }
+
+    await prisma.user.update({
+      where: { id: targetUserId },
+      data: { googleId: null }
+    });
+
+    logger.info('Google account unlinked', { userId: req.user!.id, targetUserId, email: targetUser.email });
+
+    res.json({ success: true, message: 'קישור חשבון Google בוטל בהצלחה' });
   } catch (error) {
     next(error);
   }
@@ -328,6 +527,7 @@ router.get('/profile', authenticateToken, async (req: AuthRequest, res, next) =>
         timerAlerts: true,
         language: true,
         isActive: true,
+        googleId: true,
         clientEntityId: true,
         clientEntity: { select: { id: true, name: true } }
       }

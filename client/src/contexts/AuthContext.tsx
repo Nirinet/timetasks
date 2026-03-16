@@ -7,8 +7,11 @@ interface AuthContextType {
   user: User | null
   loading: boolean
   login: (email: string, password: string) => Promise<boolean>
+  loginWithGoogle: (credential: string) => Promise<boolean>
   logout: () => void
   updateProfile: (data: Partial<User>) => Promise<boolean>
+  linkGoogle: (credential: string) => Promise<boolean>
+  unlinkGoogle: () => Promise<boolean>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -74,6 +77,30 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }
 
+  const loginWithGoogle = async (credential: string): Promise<boolean> => {
+    try {
+      const response = await api.post<ApiResponse<{
+        user: User
+        accessToken: string
+        refreshToken: string
+      }>>('/auth/google', { credential })
+
+      if (response.data.success && response.data.data) {
+        const { user, accessToken, refreshToken } = response.data.data
+
+        localStorage.setItem('accessToken', accessToken)
+        localStorage.setItem('refreshToken', refreshToken)
+        setUser(user)
+
+        toast.success(response.data.message || 'התחברת בהצלחה!')
+        return true
+      }
+      return false
+    } catch (error: any) {
+      return false
+    }
+  }
+
   const logout = async () => {
     try {
       await api.post('/auth/logout')
@@ -101,12 +128,53 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }
 
+  const linkGoogle = async (credential: string): Promise<boolean> => {
+    try {
+      const response = await api.post<ApiResponse<void>>('/auth/link-google', { credential })
+
+      if (response.data.success) {
+        // Refresh user data to get the new googleId
+        const profileResponse = await api.get<ApiResponse<{ user: User }>>('/auth/profile')
+        if (profileResponse.data.success && profileResponse.data.data) {
+          setUser(profileResponse.data.data.user)
+        }
+        toast.success(response.data.message || 'חשבון Google קושר בהצלחה')
+        return true
+      }
+      return false
+    } catch (error: any) {
+      return false
+    }
+  }
+
+  const unlinkGoogle = async (): Promise<boolean> => {
+    try {
+      const response = await api.post<ApiResponse<void>>('/auth/unlink-google', {})
+
+      if (response.data.success) {
+        // Refresh user data
+        const profileResponse = await api.get<ApiResponse<{ user: User }>>('/auth/profile')
+        if (profileResponse.data.success && profileResponse.data.data) {
+          setUser(profileResponse.data.data.user)
+        }
+        toast.success(response.data.message || 'קישור Google בוטל בהצלחה')
+        return true
+      }
+      return false
+    } catch (error: any) {
+      return false
+    }
+  }
+
   const value = {
     user,
     loading,
     login,
+    loginWithGoogle,
     logout,
     updateProfile,
+    linkGoogle,
+    unlinkGoogle,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

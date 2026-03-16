@@ -15,6 +15,7 @@ export interface User {
   timerAlerts: boolean
   language: string
   avatar?: string
+  googleId?: string | null
   clientEntityId?: string | null
   clientEntity?: {
     id: string

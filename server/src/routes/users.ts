@@ -22,6 +22,7 @@ router.get('/', authenticateToken, requireAdmin, async (req: AuthRequest, res, n
         joinDate: true,
         lastLogin: true,
         phone: true,
+        googleId: true,
         clientEntityId: true,
         clientEntity: {
           select: {
