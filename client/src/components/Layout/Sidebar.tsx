@@ -12,6 +12,7 @@ import {
   Avatar,
 } from '@mui/material'
 import { useAuth } from '@/contexts/AuthContext'
+import logoSrc from '@/assets/logo.svg'
 
 interface SidebarProps {
   onItemClick?: () => void
@@ -72,7 +73,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onItemClick }) => {
           p: 2.5,
           display: 'flex',
           alignItems: 'center',
-          gap: 1.5,
+          justifyContent: 'center',
           borderBottom: '1px solid',
           borderColor: 'divider',
           cursor: 'pointer',
@@ -80,29 +81,15 @@ const Sidebar: React.FC<SidebarProps> = ({ onItemClick }) => {
         onClick={() => handleItemClick('/')}
       >
         <Box
+          component="img"
+          src={logoSrc}
+          alt="TimeTask"
           sx={{
-            width: 40,
             height: 40,
-            borderRadius: '10px',
-            bgcolor: 'primary.main',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'white',
+            width: 'auto',
+            maxWidth: '100%',
           }}
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: 24 }}>schedule</span>
-        </Box>
-        <Typography
-          sx={{
-            fontSize: '1.25rem',
-            fontWeight: 800,
-            color: 'primary.main',
-            letterSpacing: '-0.02em',
-          }}
-        >
-          TimeTask
-        </Typography>
+        />
       </Box>
 
       {/* Navigation Menu */}

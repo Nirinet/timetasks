@@ -311,12 +311,12 @@ const TasksPage: React.FC = () => {
   return (
     <Box>
       {/* Page Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 4 }}>
+      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'flex-start' }, mb: 4, gap: 2 }}>
         <Box>
-          <Typography sx={{ fontSize: '1.875rem', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.025em' }}>
+          <Typography sx={{ fontSize: { xs: '1.375rem', md: '1.875rem' }, fontWeight: 900, color: '#0f172a', letterSpacing: '-0.025em' }}>
             {user?.role === 'CLIENT' ? 'המשימות שלי' : 'משימות'}
           </Typography>
-          <Typography sx={{ fontSize: '0.875rem', color: '#64748b', mt: 0.5 }}>
+          <Typography sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' }, color: '#64748b', mt: 0.5 }}>
             {user?.role === 'CLIENT' ? 'צפייה וניהול משימות המוקצות לפרויקטים שלך' : 'ניהול ומעקב אחר כל המשימות במערכת'}
           </Typography>
         </Box>
@@ -344,7 +344,7 @@ const TasksPage: React.FC = () => {
         {/* Toolbar */}
         <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', p: 2, gap: 2 }}>
           {/* View Mode Toggle */}
-          <Box sx={{ display: 'flex', gap: 0.5, bgcolor: '#f1f5f9', p: 0.5, borderRadius: '8px' }}>
+          <Box sx={{ display: 'flex', gap: 0.5, bgcolor: '#f1f5f9', p: 0.5, borderRadius: '8px', overflowX: 'auto', flexShrink: 0 }}>
             {viewModes.map((vm) => (
               <Box
                 key={vm.value}
@@ -353,8 +353,9 @@ const TasksPage: React.FC = () => {
                   display: 'flex',
                   alignItems: 'center',
                   gap: 0.75,
-                  px: 2,
+                  px: { xs: 1.5, md: 2 },
                   py: 1,
+                  whiteSpace: 'nowrap',
                   borderRadius: '6px',
                   cursor: 'pointer',
                   fontSize: '0.875rem',
@@ -435,8 +436,8 @@ const TasksPage: React.FC = () => {
             {!loading && tasks.length === 0 ? (
               <EmptyState title="אין משימות" subtitle="הוסף משימה חדשה או שנה את הפילטרים" />
             ) : (
-              <TableContainer>
-                <Table>
+              <TableContainer sx={{ overflowX: 'auto' }}>
+                <Table sx={{ minWidth: 800 }}>
                   <TableHead>
                     <TableRow>
                       <TableCell sx={{ bgcolor: '#f8fafc', color: '#64748b', fontWeight: 600, fontSize: '0.8125rem' }}>כותרת המשימה</TableCell>
@@ -684,7 +685,7 @@ const TasksPage: React.FC = () => {
                         <Typography sx={{ whiteSpace: 'pre-wrap', fontSize: '0.875rem', color: '#334155' }}>{taskDetail.description}</Typography>
                       </Box>
                     )}
-                    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 3, mb: 3 }}>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, gap: { xs: 2, md: 3 }, mb: 3 }}>
                       {taskDetail.deadline && (
                         <Box>
                           <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', mb: 0.5 }}>דדליין</Typography>

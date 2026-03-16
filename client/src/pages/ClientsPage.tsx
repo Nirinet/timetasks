@@ -176,10 +176,10 @@ const ClientsPage: React.FC = () => {
   return (
     <Box>
       {/* Page Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', md: 'flex-end' }, mb: 3 }}>
+      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'flex-start' }, mb: 3, gap: 2 }}>
         <Box>
-          <Typography sx={{ fontSize: '1.875rem', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.025em' }}>ניהול לקוחות</Typography>
-          <Typography sx={{ fontSize: '0.875rem', color: '#64748b', mt: 0.5 }}>מרכז שליטה ובקרה על כלל לקוחות המערכת והפרויקטים המשויכים.</Typography>
+          <Typography sx={{ fontSize: { xs: '1.375rem', md: '1.875rem' }, fontWeight: 900, color: '#0f172a', letterSpacing: '-0.025em' }}>ניהול לקוחות</Typography>
+          <Typography sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' }, color: '#64748b', mt: 0.5 }}>מרכז שליטה ובקרה על כלל לקוחות המערכת והפרויקטים המשויכים.</Typography>
         </Box>
         <Button
           variant="contained"
@@ -203,8 +203,8 @@ const ClientsPage: React.FC = () => {
           <EmptyState title="אין לקוחות" subtitle="הוסף לקוח חדש כדי להתחיל" />
         ) : (
           <>
-            <TableContainer>
-              <Table>
+            <TableContainer sx={{ overflowX: 'auto' }}>
+              <Table sx={{ minWidth: 750 }}>
                 <TableHead>
                   <TableRow>
                     {['שם העסק', 'איש קשר', 'פרטי התקשרות', 'פרויקטים', 'סטטוס', 'פעולות'].map((h) => (

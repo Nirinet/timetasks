@@ -251,8 +251,8 @@ const UsersPage: React.FC = () => {
         {!loading && filteredUsers.length === 0 ? (
           <EmptyState title="אין משתמשים" subtitle="הוסף משתמש חדש כדי להתחיל" />
         ) : (
-          <TableContainer>
-            <Table>
+          <TableContainer sx={{ overflowX: 'auto' }}>
+            <Table sx={{ minWidth: 700 }}>
               <TableHead>
                 <TableRow>
                   <TableCell sx={{ bgcolor: 'rgba(45,123,149,0.05)', color: 'rgba(45,123,149,0.7)', fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>שם משתמש</TableCell>

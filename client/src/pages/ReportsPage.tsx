@@ -142,8 +142,8 @@ const ReportsPage: React.FC = () => {
       {/* Page Header */}
       <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'flex-start', md: 'flex-end' }, gap: 2, mb: 4 }}>
         <Box>
-          <Typography sx={{ fontSize: '1.875rem', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.025em', mb: 0.5 }}>דוח שעות מפורט</Typography>
-          <Typography sx={{ fontSize: '0.875rem', color: '#64748b' }}>צפייה וניתוח של פעילות השעות במערכת לפי חיתוכים שונים</Typography>
+          <Typography sx={{ fontSize: { xs: '1.375rem', md: '1.875rem' }, fontWeight: 900, color: '#0f172a', letterSpacing: '-0.025em', mb: 0.5 }}>דוח שעות מפורט</Typography>
+          <Typography sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' }, color: '#64748b' }}>צפייה וניתוח של פעילות השעות במערכת לפי חיתוכים שונים</Typography>
         </Box>
         {/* Export buttons */}
         {hoursData && activeTab === 0 && (
@@ -320,8 +320,8 @@ const ReportsPage: React.FC = () => {
           ) : (
             <>
               <Card sx={{ mb: 4, borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
-                <TableContainer>
-                  <Table>
+                <TableContainer sx={{ overflowX: 'auto' }}>
+                  <Table sx={{ minWidth: 650 }}>
                     <TableHead>
                       <TableRow>
                         <TableCell sx={thStyle}>שם עובד</TableCell>

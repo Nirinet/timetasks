@@ -343,12 +343,12 @@ const ProjectsPage: React.FC = () => {
   return (
     <Box>
       {/* Page Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 4 }}>
+      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'flex-start' }, mb: 4, gap: 2 }}>
         <Box>
-          <Typography sx={{ fontSize: '1.875rem', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.025em' }}>
+          <Typography sx={{ fontSize: { xs: '1.375rem', md: '1.875rem' }, fontWeight: 900, color: '#0f172a', letterSpacing: '-0.025em' }}>
             פרויקטים
           </Typography>
-          <Typography sx={{ fontSize: '0.875rem', color: '#64748b', mt: 0.5 }}>
+          <Typography sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' }, color: '#64748b', mt: 0.5 }}>
             ניהול פרויקטים, משימות וצוותי עבודה
           </Typography>
         </Box>

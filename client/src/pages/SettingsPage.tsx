@@ -57,8 +57,8 @@ const SettingsPage: React.FC = () => {
     <Box>
       {/* Page Header */}
       <Box sx={{ mb: 4 }}>
-        <Typography sx={{ fontSize: '1.875rem', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.025em' }}>הגדרות מערכת</Typography>
-        <Typography sx={{ fontSize: '0.875rem', color: '#64748b', mt: 1 }}>ניהול תצורת המערכת, עדיפויות, סטטוסים והתראות גלובליות</Typography>
+        <Typography sx={{ fontSize: { xs: '1.375rem', md: '1.875rem' }, fontWeight: 900, color: '#0f172a', letterSpacing: '-0.025em' }}>הגדרות מערכת</Typography>
+        <Typography sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' }, color: '#64748b', mt: 1 }}>ניהול תצורת המערכת, עדיפויות, סטטוסים והתראות גלובליות</Typography>
       </Box>
 
       {loading && <LinearProgress sx={{ mb: 3, bgcolor: 'rgba(45,123,149,0.1)', '& .MuiLinearProgress-bar': { bgcolor: '#2d7b95' } }} />}
@@ -131,7 +131,8 @@ const SettingsPage: React.FC = () => {
             <Typography sx={{ fontSize: '1.25rem', fontWeight: 700 }}>ניהול עדיפויות</Typography>
           </Box>
           <Card sx={{ borderRadius: '12px', border: '1px solid rgba(45,123,149,0.1)', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
-            <Box component="table" sx={{ width: '100%', borderCollapse: 'collapse', textAlign: 'right' }}>
+            <Box sx={{ overflowX: 'auto' }}>
+            <Box component="table" sx={{ width: '100%', minWidth: 400, borderCollapse: 'collapse', textAlign: 'right' }}>
               <Box component="thead" sx={{ bgcolor: '#f8fafc' }}>
                 <Box component="tr">
                   {['רמה', 'שם', 'צבע', 'אייקון'].map((h) => (
@@ -159,6 +160,7 @@ const SettingsPage: React.FC = () => {
                 ))}
               </Box>
             </Box>
+            </Box>
           </Card>
         </Box>
 
@@ -169,7 +171,8 @@ const SettingsPage: React.FC = () => {
             <Typography sx={{ fontSize: '1.25rem', fontWeight: 700 }}>ניהול סטטוסים</Typography>
           </Box>
           <Card sx={{ borderRadius: '12px', border: '1px solid rgba(45,123,149,0.1)', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
-            <Box component="table" sx={{ width: '100%', borderCollapse: 'collapse', textAlign: 'right' }}>
+            <Box sx={{ overflowX: 'auto' }}>
+            <Box component="table" sx={{ width: '100%', minWidth: 400, borderCollapse: 'collapse', textAlign: 'right' }}>
               <Box component="thead" sx={{ bgcolor: '#f8fafc' }}>
                 <Box component="tr">
                   {['קוד', 'שם תצוגה', 'צבע'].map((h) => (
@@ -195,6 +198,7 @@ const SettingsPage: React.FC = () => {
                   </Box>
                 ))}
               </Box>
+            </Box>
             </Box>
           </Card>
         </Box>
