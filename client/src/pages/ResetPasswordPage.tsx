@@ -2,17 +2,15 @@ import React, { useState } from 'react'
 import { Link as RouterLink, useSearchParams, useNavigate } from 'react-router-dom'
 import {
   Box,
-  Card,
-  CardContent,
   TextField,
   Button,
   Typography,
-  Container,
   Alert,
   CircularProgress,
   Link,
+  InputAdornment,
+  IconButton,
 } from '@mui/material'
-import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
 import api from '@/services/api'
 import toast from 'react-hot-toast'
 
@@ -23,6 +21,8 @@ const ResetPasswordPage: React.FC = () => {
 
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -53,117 +53,317 @@ const ResetPasswordPage: React.FC = () => {
     }
   }
 
-  if (!token) {
-    return (
+  const renderAuthContainer = (content: React.ReactNode) => (
+    <Box
+      sx={{
+        minHeight: '100vh',
+        bgcolor: '#f6f7f8',
+        display: 'flex',
+        flexDirection: 'column',
+        position: 'relative',
+      }}
+    >
+      {/* Background gradient overlay */}
       <Box
         sx={{
-          minHeight: '100vh',
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          position: 'fixed',
+          inset: 0,
+          zIndex: 0,
+          opacity: 0.3,
+          pointerEvents: 'none',
+          background: 'linear-gradient(to bottom right, rgba(45,123,149,0.2), transparent, rgba(45,123,149,0.1))',
+        }}
+      />
+
+      {/* Top bar */}
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          px: 4,
+          py: 2,
+          position: 'relative',
+          zIndex: 1,
+        }}
+      >
+        <Box />
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Typography sx={{ fontSize: '1.25rem', fontWeight: 800, color: '#2d7b95' }}>TimeTask</Typography>
+          <Box
+            sx={{
+              width: 36,
+              height: 36,
+              borderRadius: '8px',
+              bgcolor: '#2d7b95',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'white',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 20 }}>schedule</span>
+          </Box>
+        </Box>
+      </Box>
+
+      {/* Main content */}
+      <Box
+        sx={{
+          flex: 1,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: 2,
+          px: 2,
+          pb: 8,
+          position: 'relative',
+          zIndex: 1,
         }}
       >
-        <Container maxWidth="sm">
-          <Card sx={{ boxShadow: '0 8px 32px rgba(0,0,0,0.1)', borderRadius: 2 }}>
-            <CardContent sx={{ p: 4, textAlign: 'center' }}>
-              <Alert severity="error" sx={{ mb: 3 }}>
-                קישור לא תקין. נסה לבקש איפוס סיסמה מחדש.
-              </Alert>
-              <Link component={RouterLink} to="/forgot-password" variant="body1">
-                בקש איפוס סיסמה
-              </Link>
-            </CardContent>
-          </Card>
-        </Container>
+        <Box
+          sx={{
+            width: '100%',
+            maxWidth: 420,
+            bgcolor: 'white',
+            borderRadius: '16px',
+            boxShadow: '0 25px 50px -12px rgba(0,0,0,0.15)',
+            overflow: 'hidden',
+          }}
+        >
+          {content}
+        </Box>
+      </Box>
+
+      {/* Footer */}
+      <Box
+        sx={{
+          textAlign: 'center',
+          pb: 3,
+          position: 'relative',
+          zIndex: 1,
+        }}
+      >
+        <Typography sx={{ fontSize: '0.8125rem', color: '#94a3b8' }}>
+          TimeTask 2024 ©. כל הזכויות שמורות.
+        </Typography>
+      </Box>
+    </Box>
+  )
+
+  if (!token) {
+    return renderAuthContainer(
+      <Box sx={{ p: 4, textAlign: 'center' }}>
+        <Box
+          sx={{
+            width: 56,
+            height: 56,
+            borderRadius: '50%',
+            bgcolor: '#fef2f2',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            mx: 'auto',
+            mb: 2,
+          }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 28, color: '#ef4444' }}>error</span>
+        </Box>
+        <Typography sx={{ fontSize: '1.125rem', fontWeight: 700, color: '#0f172a', mb: 1 }}>
+          קישור לא תקין
+        </Typography>
+        <Typography sx={{ fontSize: '0.875rem', color: '#64748b', mb: 3 }}>
+          נסה לבקש איפוס סיסמה מחדש.
+        </Typography>
+        <Link
+          component={RouterLink}
+          to="/forgot-password"
+          sx={{
+            fontSize: '0.875rem',
+            color: '#2d7b95',
+            fontWeight: 600,
+            textDecoration: 'none',
+            '&:hover': { textDecoration: 'underline' },
+          }}
+        >
+          בקש איפוס סיסמה
+        </Link>
       </Box>
     )
   }
 
-  return (
-    <Box
-      sx={{
-        minHeight: '100vh',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 2,
-      }}
-    >
-      <Container maxWidth="sm">
-        <Card sx={{ boxShadow: '0 8px 32px rgba(0,0,0,0.1)', borderRadius: 2 }}>
-          <CardContent sx={{ p: 4 }}>
-            <Box textAlign="center" mb={4}>
-              <Typography
-                variant="h4"
-                component="h1"
-                gutterBottom
-                sx={{ fontWeight: 600, color: 'primary.main' }}
-              >
-                איפוס סיסמה
-              </Typography>
-              <Typography variant="body1" color="text.secondary">
-                הזן את הסיסמה החדשה שלך
-              </Typography>
-            </Box>
+  return renderAuthContainer(
+    <>
+      {/* Card header */}
+      <Box
+        sx={{
+          background: 'linear-gradient(180deg, rgba(45,123,149,0.08) 0%, transparent 100%)',
+          pt: 5,
+          pb: 3,
+          textAlign: 'center',
+        }}
+      >
+        <Box
+          sx={{
+            width: 56,
+            height: 56,
+            borderRadius: '12px',
+            bgcolor: 'rgba(45,123,149,0.1)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            mx: 'auto',
+            mb: 2,
+          }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 28, color: '#2d7b95' }}>lock_open</span>
+        </Box>
+        <Typography sx={{ fontSize: '1.5rem', fontWeight: 700, color: '#0f172a' }}>
+          איפוס סיסמה
+        </Typography>
+        <Typography sx={{ fontSize: '0.875rem', color: '#64748b', mt: 1 }}>
+          אנא הזן את הסיסמה החדשה שלך למטה.
+        </Typography>
+      </Box>
 
-            {error && (
-              <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>
-            )}
+      {/* Form */}
+      <Box sx={{ px: 4, pb: 4 }}>
+        {error && (
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1.5,
+              p: 1.5,
+              mb: 3,
+              bgcolor: '#fef2f2',
+              borderRight: '4px solid #ef4444',
+              borderRadius: '4px',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 20, color: '#ef4444' }}>error</span>
+            <Typography sx={{ fontSize: '0.875rem', color: '#b91c1c', fontWeight: 500 }}>
+              {error}
+            </Typography>
+          </Box>
+        )}
 
-            <form onSubmit={handleSubmit}>
-              <TextField
-                fullWidth
-                label="סיסמה חדשה"
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                margin="normal"
-                required
-                autoFocus
-                disabled={loading}
-                helperText="לפחות 8 תווים, אות קטנה, אות גדולה ומספר"
-                sx={{ mb: 2 }}
-              />
+        <form onSubmit={handleSubmit}>
+          <Box sx={{ mb: 2.5 }}>
+            <Typography sx={{ fontSize: '0.875rem', fontWeight: 500, color: '#374151', mb: 0.75 }}>
+              סיסמה חדשה
+            </Typography>
+            <TextField
+              fullWidth
+              type={showPassword ? 'text' : 'password'}
+              placeholder="הזן סיסמה חדשה"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              required
+              autoFocus
+              disabled={loading}
+              size="small"
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <span className="material-symbols-outlined" style={{ fontSize: 20, color: '#94a3b8' }}>lock</span>
+                  </InputAdornment>
+                ),
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <IconButton size="small" onClick={() => setShowPassword(!showPassword)} edge="start">
+                      <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#94a3b8' }}>
+                        {showPassword ? 'visibility_off' : 'visibility'}
+                      </span>
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+              sx={{ '& .MuiOutlinedInput-root': { bgcolor: '#f8fafc', height: 44 } }}
+            />
+          </Box>
 
-              <TextField
-                fullWidth
-                label="אישור סיסמה"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                margin="normal"
-                required
-                disabled={loading}
-                error={confirmPassword !== '' && newPassword !== confirmPassword}
-                helperText={confirmPassword !== '' && newPassword !== confirmPassword ? 'הסיסמאות אינן תואמות' : ''}
-                sx={{ mb: 3 }}
-              />
+          <Box sx={{ mb: 3 }}>
+            <Typography sx={{ fontSize: '0.875rem', fontWeight: 500, color: '#374151', mb: 0.75 }}>
+              אימות סיסמה חדשה
+            </Typography>
+            <TextField
+              fullWidth
+              type={showConfirm ? 'text' : 'password'}
+              placeholder="אמת את הסיסמה החדשה"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+              disabled={loading}
+              size="small"
+              error={confirmPassword !== '' && newPassword !== confirmPassword}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <span className="material-symbols-outlined" style={{ fontSize: 20, color: '#94a3b8' }}>lock</span>
+                  </InputAdornment>
+                ),
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <IconButton size="small" onClick={() => setShowConfirm(!showConfirm)} edge="start">
+                      <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#94a3b8' }}>
+                        {showConfirm ? 'visibility_off' : 'visibility'}
+                      </span>
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+              sx={{ '& .MuiOutlinedInput-root': { bgcolor: '#f8fafc', height: 44 } }}
+            />
+          </Box>
 
-              <Button
-                type="submit"
-                fullWidth
-                variant="contained"
-                size="large"
-                disabled={loading}
-                sx={{ py: 1.5, fontSize: '16px', fontWeight: 600 }}
-              >
-                {loading ? <CircularProgress size={24} color="inherit" /> : 'שנה סיסמה'}
-              </Button>
-
-              <Box mt={2} textAlign="center">
-                <Link component={RouterLink} to="/login" variant="body2">
-                  <ArrowForwardIcon sx={{ ml: 0.5, fontSize: 16, verticalAlign: 'middle' }} />
-                  חזרה להתחברות
-                </Link>
+          <Button
+            type="submit"
+            fullWidth
+            variant="contained"
+            disabled={loading}
+            sx={{
+              py: 1.5,
+              fontSize: '1rem',
+              fontWeight: 700,
+              borderRadius: '8px',
+              bgcolor: '#2d7b95',
+              boxShadow: '0 1px 2px 0 rgba(45,123,149,0.2)',
+              '&:hover': { bgcolor: 'rgba(45,123,149,0.9)' },
+            }}
+          >
+            {loading ? (
+              <CircularProgress size={24} color="inherit" />
+            ) : (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 20 }}>check_circle</span>
+                עדכן סיסמה
               </Box>
-            </form>
-          </CardContent>
-        </Card>
-      </Container>
-    </Box>
+            )}
+          </Button>
+
+          {/* Footer */}
+          <Box sx={{ mt: 4, pt: 3, borderTop: '1px solid #e2e8f0', textAlign: 'center' }}>
+            <Link
+              component={RouterLink}
+              to="/login"
+              sx={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 0.5,
+                fontSize: '0.875rem',
+                color: '#2d7b95',
+                fontWeight: 600,
+                textDecoration: 'none',
+                '&:hover': { textDecoration: 'underline' },
+              }}
+            >
+              חזרה להתחברות
+              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>arrow_forward</span>
+            </Link>
+          </Box>
+        </form>
+      </Box>
+    </>
   )
 }
 

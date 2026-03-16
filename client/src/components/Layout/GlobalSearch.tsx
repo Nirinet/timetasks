@@ -1,8 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import {
   Box,
-  TextField,
-  InputAdornment,
+  InputBase,
   Paper,
   Popper,
   Typography,
@@ -14,10 +13,6 @@ import {
   ClickAwayListener,
   CircularProgress,
 } from '@mui/material'
-import SearchIcon from '@mui/icons-material/Search'
-import AssignmentIcon from '@mui/icons-material/Assignment'
-import FolderIcon from '@mui/icons-material/Folder'
-import BusinessIcon from '@mui/icons-material/Business'
 import { useNavigate } from 'react-router-dom'
 
 import api from '@/services/api'
@@ -79,7 +74,6 @@ const GlobalSearch: React.FC = () => {
     setOpen(false)
   }
 
-  // Cleanup debounce on unmount
   useEffect(() => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
@@ -94,55 +88,77 @@ const GlobalSearch: React.FC = () => {
 
   return (
     <ClickAwayListener onClickAway={handleClose}>
-      <Box ref={anchorRef} sx={{ position: 'relative', mx: 2, flexGrow: 1, maxWidth: 400 }}>
-        <TextField
-          size="small"
-          placeholder="חיפוש משימות, פרויקטים, לקוחות..."
-          value={query}
-          onChange={handleChange}
-          onFocus={() => {
-            if (hasResults) setOpen(true)
-          }}
-          fullWidth
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                {loading ? <CircularProgress size={20} /> : <SearchIcon />}
-              </InputAdornment>
-            ),
-          }}
+      <Box ref={anchorRef} sx={{ position: 'relative', flexGrow: 1, maxWidth: 480 }}>
+        <Box
           sx={{
-            '& .MuiOutlinedInput-root': {
-              bgcolor: 'action.hover',
-              borderRadius: 2,
-              '& fieldset': { border: 'none' },
-              '&:hover': { bgcolor: 'action.selected' },
-              '&.Mui-focused': {
-                bgcolor: 'background.paper',
-                '& fieldset': { border: '1px solid', borderColor: 'primary.main' },
-              },
+            display: 'flex',
+            alignItems: 'center',
+            bgcolor: '#f1f5f9',
+            borderRadius: '8px',
+            px: 1.5,
+            height: 40,
+            transition: 'all 0.2s',
+            '&:focus-within': {
+              bgcolor: 'white',
+              boxShadow: '0 0 0 2px rgba(45, 123, 149, 0.2)',
             },
           }}
-        />
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', color: '#94a3b8', ml: 1 }}>
+            {loading ? (
+              <CircularProgress size={18} sx={{ color: '#94a3b8' }} />
+            ) : (
+              <span className="material-symbols-outlined" style={{ fontSize: 20 }}>search</span>
+            )}
+          </Box>
+          <InputBase
+            placeholder="חיפוש משימות, פרויקטים..."
+            value={query}
+            onChange={handleChange}
+            onFocus={() => { if (hasResults) setOpen(true) }}
+            sx={{
+              flex: 1,
+              fontSize: '0.875rem',
+              '& input': {
+                py: 0.75,
+                px: 1,
+                '&::placeholder': {
+                  color: '#94a3b8',
+                  opacity: 1,
+                },
+              },
+            }}
+          />
+        </Box>
 
         <Popper
           open={open}
           anchorEl={anchorRef.current}
           placement="bottom-start"
-          sx={{ zIndex: 1300, width: anchorRef.current?.offsetWidth || 400 }}
+          sx={{ zIndex: 1300, width: anchorRef.current?.offsetWidth || 480 }}
         >
           <Paper
-            elevation={8}
-            sx={{ mt: 0.5, maxHeight: 400, overflow: 'auto', borderRadius: 2 }}
+            sx={{
+              mt: 0.5,
+              maxHeight: 400,
+              overflow: 'auto',
+              borderRadius: '12px',
+              border: '1px solid #e2e8f0',
+              boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)',
+            }}
           >
             {results && (
               <>
-                {/* Tasks */}
                 {results.tasks.length > 0 && (
                   <>
                     <Typography
-                      variant="caption"
-                      sx={{ px: 2, pt: 1.5, pb: 0.5, display: 'block', color: 'text.secondary', fontWeight: 600 }}
+                      sx={{
+                        px: 2, pt: 1.5, pb: 0.5,
+                        display: 'block',
+                        color: 'text.secondary',
+                        fontWeight: 600,
+                        fontSize: '0.75rem',
+                      }}
                     >
                       משימות
                     </Typography>
@@ -151,15 +167,15 @@ const GlobalSearch: React.FC = () => {
                         <ListItemButton
                           key={task.id}
                           onClick={() => handleNavigate('/tasks')}
-                          sx={{ px: 2 }}
+                          sx={{ px: 2, '&:hover': { bgcolor: '#f8fafc' } }}
                         >
-                          <ListItemIcon sx={{ minWidth: 36 }}>
-                            <AssignmentIcon fontSize="small" color="primary" />
+                          <ListItemIcon sx={{ minWidth: 32 }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#2d7b95' }}>task_alt</span>
                           </ListItemIcon>
                           <ListItemText
                             primary={task.title}
                             secondary={task.project.name}
-                            primaryTypographyProps={{ noWrap: true, fontSize: '0.875rem' }}
+                            primaryTypographyProps={{ noWrap: true, fontSize: '0.875rem', fontWeight: 500 }}
                             secondaryTypographyProps={{ noWrap: true, fontSize: '0.75rem' }}
                           />
                           <StatusChip status={task.status} size="small" />
@@ -169,13 +185,17 @@ const GlobalSearch: React.FC = () => {
                   </>
                 )}
 
-                {/* Projects */}
                 {results.projects.length > 0 && (
                   <>
                     {results.tasks.length > 0 && <Divider />}
                     <Typography
-                      variant="caption"
-                      sx={{ px: 2, pt: 1.5, pb: 0.5, display: 'block', color: 'text.secondary', fontWeight: 600 }}
+                      sx={{
+                        px: 2, pt: 1.5, pb: 0.5,
+                        display: 'block',
+                        color: 'text.secondary',
+                        fontWeight: 600,
+                        fontSize: '0.75rem',
+                      }}
                     >
                       פרויקטים
                     </Typography>
@@ -184,15 +204,15 @@ const GlobalSearch: React.FC = () => {
                         <ListItemButton
                           key={project.id}
                           onClick={() => handleNavigate('/projects')}
-                          sx={{ px: 2 }}
+                          sx={{ px: 2, '&:hover': { bgcolor: '#f8fafc' } }}
                         >
-                          <ListItemIcon sx={{ minWidth: 36 }}>
-                            <FolderIcon fontSize="small" color="warning" />
+                          <ListItemIcon sx={{ minWidth: 32 }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#f97316' }}>folder</span>
                           </ListItemIcon>
                           <ListItemText
                             primary={project.name}
                             secondary={project.clients?.map((pc: any) => pc.client.name).join(', ')}
-                            primaryTypographyProps={{ noWrap: true, fontSize: '0.875rem' }}
+                            primaryTypographyProps={{ noWrap: true, fontSize: '0.875rem', fontWeight: 500 }}
                             secondaryTypographyProps={{ noWrap: true, fontSize: '0.75rem' }}
                           />
                           <ProjectStatusChip status={project.status} size="small" />
@@ -202,13 +222,17 @@ const GlobalSearch: React.FC = () => {
                   </>
                 )}
 
-                {/* Clients */}
                 {results.clients.length > 0 && (
                   <>
                     {(results.tasks.length > 0 || results.projects.length > 0) && <Divider />}
                     <Typography
-                      variant="caption"
-                      sx={{ px: 2, pt: 1.5, pb: 0.5, display: 'block', color: 'text.secondary', fontWeight: 600 }}
+                      sx={{
+                        px: 2, pt: 1.5, pb: 0.5,
+                        display: 'block',
+                        color: 'text.secondary',
+                        fontWeight: 600,
+                        fontSize: '0.75rem',
+                      }}
                     >
                       לקוחות
                     </Typography>
@@ -217,15 +241,15 @@ const GlobalSearch: React.FC = () => {
                         <ListItemButton
                           key={client.id}
                           onClick={() => handleNavigate('/clients')}
-                          sx={{ px: 2 }}
+                          sx={{ px: 2, '&:hover': { bgcolor: '#f8fafc' } }}
                         >
-                          <ListItemIcon sx={{ minWidth: 36 }}>
-                            <BusinessIcon fontSize="small" color="success" />
+                          <ListItemIcon sx={{ minWidth: 32 }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#10b981' }}>person_search</span>
                           </ListItemIcon>
                           <ListItemText
                             primary={client.name}
                             secondary={client.contactPerson}
-                            primaryTypographyProps={{ noWrap: true, fontSize: '0.875rem' }}
+                            primaryTypographyProps={{ noWrap: true, fontSize: '0.875rem', fontWeight: 500 }}
                             secondaryTypographyProps={{ noWrap: true, fontSize: '0.75rem' }}
                           />
                         </ListItemButton>
@@ -237,8 +261,8 @@ const GlobalSearch: React.FC = () => {
             )}
 
             {query.length >= 2 && !loading && !hasResults && (
-              <Box sx={{ p: 2, textAlign: 'center' }}>
-                <Typography variant="body2" color="text.secondary">
+              <Box sx={{ p: 3, textAlign: 'center' }}>
+                <Typography sx={{ fontSize: '0.875rem', color: 'text.secondary' }}>
                   לא נמצאו תוצאות
                 </Typography>
               </Box>

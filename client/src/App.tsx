@@ -16,6 +16,7 @@ import ReportsPage from '@/pages/ReportsPage'
 import UsersPage from '@/pages/UsersPage'
 import ProfilePage from '@/pages/ProfilePage'
 import SettingsPage from '@/pages/SettingsPage'
+import NotFoundPage from '@/pages/NotFoundPage'
 
 function App() {
   const { user, loading } = useAuth()

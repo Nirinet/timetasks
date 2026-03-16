@@ -14,6 +14,7 @@ export interface User {
   emailNotifications: boolean
   timerAlerts: boolean
   language: string
+  avatar?: string
   clientEntityId?: string | null
   clientEntity?: {
     id: string
@@ -330,17 +331,33 @@ export interface SearchResult {
 }
 
 // Priority colors mapping
-export const PRIORITY_COLORS = {
-  URGENT_IMPORTANT: '#f44336', // Red
-  IMPORTANT: '#ff9800',        // Orange
-  NORMAL: '#ffeb3b',          // Yellow
-  LOW: '#4caf50',             // Green
+export const PRIORITY_COLORS: Record<string, { bg: string; text: string; icon: string }> = {
+  URGENT_IMPORTANT: { bg: '#fee2e2', text: '#dc2626', icon: 'error' },
+  IMPORTANT: { bg: '#ffedd5', text: '#ea580c', icon: 'warning' },
+  NORMAL: { bg: '#fef9c3', text: '#ca8a04', icon: 'remove' },
+  LOW: { bg: '#dbeafe', text: '#2563eb', icon: 'arrow_downward' },
+} as const
+
+// Legacy flat priority colors for backward compat
+export const PRIORITY_COLORS_FLAT: Record<string, string> = {
+  URGENT_IMPORTANT: '#ef4444',
+  IMPORTANT: '#f97316',
+  NORMAL: '#eab308',
+  LOW: '#3b82f6',
 } as const
 
 // Status colors mapping
-export const STATUS_COLORS = {
-  NEW: '#9e9e9e',              // Gray
-  IN_PROGRESS: '#2196f3',      // Blue
-  WAITING_CLIENT: '#ff9800',   // Orange
-  COMPLETED: '#4caf50',        // Green
+export const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
+  NEW: { bg: 'rgba(45,123,149,0.15)', text: '#2d7b95' },
+  IN_PROGRESS: { bg: '#dbeafe', text: '#1d4ed8' },
+  WAITING_CLIENT: { bg: '#ffedd5', text: '#c2410c' },
+  COMPLETED: { bg: '#d1fae5', text: '#047857' },
+} as const
+
+// Legacy flat status colors for backward compat
+export const STATUS_COLORS_FLAT: Record<string, string> = {
+  NEW: '#2d7b95',
+  IN_PROGRESS: '#3b82f6',
+  WAITING_CLIENT: '#f97316',
+  COMPLETED: '#10b981',
 } as const

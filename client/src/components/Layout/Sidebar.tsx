@@ -11,17 +11,6 @@ import {
   Typography,
   Avatar,
 } from '@mui/material'
-import {
-  Dashboard as DashboardIcon,
-  Assignment as TasksIcon,
-  FolderOpen as ProjectsIcon,
-  People as ClientsIcon,
-  Schedule as TimeIcon,
-  Assessment as ReportsIcon,
-  SupervisorAccount as UsersIcon,
-  Settings as SettingsIcon,
-} from '@mui/icons-material'
-
 import { useAuth } from '@/contexts/AuthContext'
 
 interface SidebarProps {
@@ -31,59 +20,19 @@ interface SidebarProps {
 interface MenuItem {
   label: string
   path: string
-  icon: React.ReactElement
+  icon: string // Material Symbols icon name
   roles: string[]
 }
 
 const menuItems: MenuItem[] = [
-  {
-    label: 'דשבורד',
-    path: '/',
-    icon: <DashboardIcon />,
-    roles: ['ADMIN', 'EMPLOYEE', 'CLIENT'],
-  },
-  {
-    label: 'משימות',
-    path: '/tasks',
-    icon: <TasksIcon />,
-    roles: ['ADMIN', 'EMPLOYEE', 'CLIENT'],
-  },
-  {
-    label: 'פרויקטים',
-    path: '/projects',
-    icon: <ProjectsIcon />,
-    roles: ['ADMIN', 'EMPLOYEE', 'CLIENT'],
-  },
-  {
-    label: 'לקוחות',
-    path: '/clients',
-    icon: <ClientsIcon />,
-    roles: ['ADMIN', 'EMPLOYEE'],
-  },
-  {
-    label: 'מעקב זמן',
-    path: '/time-tracking',
-    icon: <TimeIcon />,
-    roles: ['ADMIN', 'EMPLOYEE', 'CLIENT'],
-  },
-  {
-    label: 'דוחות',
-    path: '/reports',
-    icon: <ReportsIcon />,
-    roles: ['ADMIN', 'EMPLOYEE', 'CLIENT'],
-  },
-  {
-    label: 'משתמשים',
-    path: '/users',
-    icon: <UsersIcon />,
-    roles: ['ADMIN'],
-  },
-  {
-    label: 'הגדרות מערכת',
-    path: '/settings',
-    icon: <SettingsIcon />,
-    roles: ['ADMIN'],
-  },
+  { label: 'לוח בקרה', path: '/', icon: 'dashboard', roles: ['ADMIN', 'EMPLOYEE', 'CLIENT'] },
+  { label: 'משימות', path: '/tasks', icon: 'task_alt', roles: ['ADMIN', 'EMPLOYEE', 'CLIENT'] },
+  { label: 'פרויקטים', path: '/projects', icon: 'folder_open', roles: ['ADMIN', 'EMPLOYEE', 'CLIENT'] },
+  { label: 'לקוחות', path: '/clients', icon: 'person_search', roles: ['ADMIN', 'EMPLOYEE'] },
+  { label: 'מעקב זמן', path: '/time-tracking', icon: 'schedule', roles: ['ADMIN', 'EMPLOYEE', 'CLIENT'] },
+  { label: 'דוחות', path: '/reports', icon: 'bar_chart', roles: ['ADMIN', 'EMPLOYEE', 'CLIENT'] },
+  { label: 'משתמשים', path: '/users', icon: 'group', roles: ['ADMIN'] },
+  { label: 'הגדרות', path: '/settings', icon: 'settings', roles: ['ADMIN'] },
 ]
 
 const Sidebar: React.FC<SidebarProps> = ({ onItemClick }) => {
@@ -104,109 +53,237 @@ const Sidebar: React.FC<SidebarProps> = ({ onItemClick }) => {
 
   const getRoleText = (role: string) => {
     switch (role) {
-      case 'ADMIN':
-        return 'מנהל מערכת'
-      case 'EMPLOYEE':
-        return 'עובד'
-      case 'CLIENT':
-        return 'לקוח'
-      default:
-        return role
+      case 'ADMIN': return 'מנהל מערכת'
+      case 'EMPLOYEE': return 'עובד'
+      case 'CLIENT': return 'לקוח'
+      default: return role
     }
   }
 
+  // Separate main nav items from settings
+  const mainNavItems = filteredMenuItems.filter(i => i.path !== '/settings')
+  const settingsItem = filteredMenuItems.find(i => i.path === '/settings')
+
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* User Profile Section */}
-      <Box sx={{ p: 2, textAlign: 'center', bgcolor: 'background.default' }}>
-        <Avatar
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', bgcolor: 'background.paper' }}>
+      {/* Logo Section */}
+      <Box
+        sx={{
+          p: 2.5,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1.5,
+          borderBottom: '1px solid',
+          borderColor: 'divider',
+          cursor: 'pointer',
+        }}
+        onClick={() => handleItemClick('/')}
+      >
+        <Box
           sx={{
-            width: 64,
-            height: 64,
-            mx: 'auto',
-            mb: 1,
+            width: 40,
+            height: 40,
+            borderRadius: '10px',
             bgcolor: 'primary.main',
-            fontSize: '24px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'white',
           }}
         >
-          {user?.firstName.charAt(0)}
-        </Avatar>
-        <Typography variant="h6" noWrap>
-          {user?.firstName} {user?.lastName}
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          {user && getRoleText(user.role)}
+          <span className="material-symbols-outlined" style={{ fontSize: 24 }}>schedule</span>
+        </Box>
+        <Typography
+          sx={{
+            fontSize: '1.25rem',
+            fontWeight: 800,
+            color: 'primary.main',
+            letterSpacing: '-0.02em',
+          }}
+        >
+          TimeTask
         </Typography>
       </Box>
 
-      <Divider />
-
       {/* Navigation Menu */}
-      <Box sx={{ flexGrow: 1, overflow: 'auto' }}>
-        <List>
-          {filteredMenuItems.map((item) => {
-            const isActive = location.pathname === item.path
+      <Box sx={{ flexGrow: 1, p: 2, overflow: 'auto' }}>
+        <List sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, p: 0 }}>
+          {mainNavItems.map((item) => {
+            const isActive = item.path === '/'
+              ? location.pathname === '/'
+              : location.pathname.startsWith(item.path)
             return (
               <ListItem key={item.path} disablePadding>
                 <ListItemButton
                   onClick={() => handleItemClick(item.path)}
                   selected={isActive}
                   sx={{
-                    mx: 1,
-                    borderRadius: 1,
+                    borderRadius: '8px',
+                    py: 1.25,
+                    px: 2,
+                    gap: 1.5,
                     '&.Mui-selected': {
-                      bgcolor: 'primary.main',
-                      color: 'primary.contrastText',
+                      bgcolor: 'rgba(45, 123, 149, 0.1)',
+                      color: 'primary.main',
                       '&:hover': {
-                        bgcolor: 'primary.dark',
+                        bgcolor: 'rgba(45, 123, 149, 0.15)',
                       },
                       '& .MuiListItemIcon-root': {
-                        color: 'primary.contrastText',
+                        color: 'primary.main',
                       },
+                      '& .MuiListItemText-primary': {
+                        fontWeight: 700,
+                      },
+                    },
+                    '&:hover': {
+                      bgcolor: '#f8fafc',
                     },
                   }}
                 >
-                  <ListItemIcon
-                    sx={{
-                      color: isActive ? 'inherit' : 'text.secondary',
-                    }}
-                  >
-                    {item.icon}
+                  <ListItemIcon sx={{ minWidth: 'auto', color: isActive ? 'primary.main' : '#64748b' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 22 }}>{item.icon}</span>
                   </ListItemIcon>
-                  <ListItemText primary={item.label} />
+                  <ListItemText
+                    primary={item.label}
+                    primaryTypographyProps={{
+                      fontSize: '0.875rem',
+                      fontWeight: isActive ? 700 : 500,
+                    }}
+                  />
                 </ListItemButton>
               </ListItem>
             )
           })}
         </List>
+
+        {/* Settings & Profile - separated */}
+        {(settingsItem || true) && (
+          <>
+            <Divider sx={{ my: 2 }} />
+            <List sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, p: 0 }}>
+              {settingsItem && (
+                <ListItem disablePadding>
+                  <ListItemButton
+                    onClick={() => handleItemClick(settingsItem.path)}
+                    selected={location.pathname.startsWith(settingsItem.path)}
+                    sx={{
+                      borderRadius: '8px',
+                      py: 1.25,
+                      px: 2,
+                      gap: 1.5,
+                      '&.Mui-selected': {
+                        bgcolor: 'rgba(45, 123, 149, 0.1)',
+                        color: 'primary.main',
+                        '&:hover': { bgcolor: 'rgba(45, 123, 149, 0.15)' },
+                        '& .MuiListItemIcon-root': { color: 'primary.main' },
+                        '& .MuiListItemText-primary': { fontWeight: 700 },
+                      },
+                      '&:hover': { bgcolor: '#f8fafc' },
+                    }}
+                  >
+                    <ListItemIcon sx={{ minWidth: 'auto', color: location.pathname.startsWith('/settings') ? 'primary.main' : '#64748b' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: 22 }}>settings</span>
+                    </ListItemIcon>
+                    <ListItemText
+                      primary="הגדרות"
+                      primaryTypographyProps={{
+                        fontSize: '0.875rem',
+                        fontWeight: location.pathname.startsWith('/settings') ? 700 : 500,
+                      }}
+                    />
+                  </ListItemButton>
+                </ListItem>
+              )}
+              <ListItem disablePadding>
+                <ListItemButton
+                  onClick={() => handleItemClick('/profile')}
+                  selected={location.pathname === '/profile'}
+                  sx={{
+                    borderRadius: '8px',
+                    py: 1.25,
+                    px: 2,
+                    gap: 1.5,
+                    '&.Mui-selected': {
+                      bgcolor: 'rgba(45, 123, 149, 0.1)',
+                      color: 'primary.main',
+                      '&:hover': { bgcolor: 'rgba(45, 123, 149, 0.15)' },
+                      '& .MuiListItemIcon-root': { color: 'primary.main' },
+                      '& .MuiListItemText-primary': { fontWeight: 700 },
+                    },
+                    '&:hover': { bgcolor: '#f8fafc' },
+                  }}
+                >
+                  <ListItemIcon sx={{ minWidth: 'auto', color: location.pathname === '/profile' ? 'primary.main' : '#64748b' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 22 }}>person</span>
+                  </ListItemIcon>
+                  <ListItemText
+                    primary="פרופיל"
+                    primaryTypographyProps={{
+                      fontSize: '0.875rem',
+                      fontWeight: location.pathname === '/profile' ? 700 : 500,
+                    }}
+                  />
+                </ListItemButton>
+              </ListItem>
+            </List>
+          </>
+        )}
       </Box>
 
-      <Divider />
-
-      {/* Profile */}
-      <List>
-        <ListItem disablePadding>
-          <ListItemButton
-            onClick={() => handleItemClick('/profile')}
-            selected={location.pathname === '/profile'}
+      {/* User Profile at Bottom */}
+      <Box
+        sx={{
+          p: 2,
+          borderTop: '1px solid',
+          borderColor: 'divider',
+        }}
+      >
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1.5,
+            bgcolor: 'rgba(45, 123, 149, 0.05)',
+            borderRadius: '12px',
+            p: 1.5,
+          }}
+        >
+          <Avatar
+            src={user?.avatar}
             sx={{
-              mx: 1,
-              borderRadius: 1,
-              '&.Mui-selected': {
-                bgcolor: 'primary.main',
-                color: 'primary.contrastText',
-                '&:hover': { bgcolor: 'primary.dark' },
-                '& .MuiListItemIcon-root': { color: 'primary.contrastText' },
-              },
+              width: 40,
+              height: 40,
+              bgcolor: 'primary.main',
+              fontSize: '0.9375rem',
+              fontWeight: 600,
             }}
           >
-            <ListItemIcon>
-              <SettingsIcon />
-            </ListItemIcon>
-            <ListItemText primary="פרופיל" />
-          </ListItemButton>
-        </ListItem>
-      </List>
+            {user?.firstName?.charAt(0)}
+          </Avatar>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography
+              sx={{
+                fontSize: '0.875rem',
+                fontWeight: 700,
+                color: 'text.primary',
+                lineHeight: 1.2,
+              }}
+              noWrap
+            >
+              {user?.firstName} {user?.lastName}
+            </Typography>
+            <Typography
+              sx={{
+                fontSize: '0.75rem',
+                color: 'text.secondary',
+                lineHeight: 1.2,
+              }}
+            >
+              {user && getRoleText(user.role)}
+            </Typography>
+          </Box>
+        </Box>
+      </Box>
     </Box>
   )
 }

@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Box,
   Drawer,
@@ -12,13 +13,9 @@ import {
   Badge,
   useTheme,
   useMediaQuery,
+  InputBase,
+  Divider,
 } from '@mui/material'
-import {
-  Menu as MenuIcon,
-  Notifications as NotificationsIcon,
-  AccountCircle as AccountCircleIcon,
-  ExitToApp as LogoutIcon,
-} from '@mui/icons-material'
 
 import { useAuth } from '@/contexts/AuthContext'
 import Sidebar from './Sidebar'
@@ -29,36 +26,23 @@ interface LayoutProps {
   children: React.ReactNode
 }
 
-const DRAWER_WIDTH = 280
+const DRAWER_WIDTH = 256
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('lg'))
+  const navigate = useNavigate()
   const { user, logout } = useAuth()
 
   const [mobileOpen, setMobileOpen] = useState(false)
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
   const [notificationAnchorEl, setNotificationAnchorEl] = useState<null | HTMLElement>(null)
 
-  const handleDrawerToggle = () => {
-    setMobileOpen(!mobileOpen)
-  }
-
-  const handleProfileMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
-    setAnchorEl(event.currentTarget)
-  }
-
-  const handleProfileMenuClose = () => {
-    setAnchorEl(null)
-  }
-
-  const handleNotificationOpen = (event: React.MouseEvent<HTMLElement>) => {
-    setNotificationAnchorEl(event.currentTarget)
-  }
-
-  const handleNotificationClose = () => {
-    setNotificationAnchorEl(null)
-  }
+  const handleDrawerToggle = () => setMobileOpen(!mobileOpen)
+  const handleProfileMenuOpen = (event: React.MouseEvent<HTMLElement>) => setAnchorEl(event.currentTarget)
+  const handleProfileMenuClose = () => setAnchorEl(null)
+  const handleNotificationOpen = (event: React.MouseEvent<HTMLElement>) => setNotificationAnchorEl(event.currentTarget)
+  const handleNotificationClose = () => setNotificationAnchorEl(null)
 
   const handleLogout = () => {
     handleProfileMenuClose()
@@ -67,6 +51,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const isMenuOpen = Boolean(anchorEl)
   const isNotificationOpen = Boolean(notificationAnchorEl)
+
+  const getRoleText = (role: string) => {
+    switch (role) {
+      case 'ADMIN': return 'מנהל מערכת'
+      case 'EMPLOYEE': return 'עובד'
+      case 'CLIENT': return 'לקוח'
+      default: return role
+    }
+  }
 
   return (
     <Box sx={{ display: 'flex' }}>
@@ -80,23 +73,21 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           color: 'text.primary',
           borderBottom: '1px solid',
           borderColor: 'divider',
+          height: 64,
         }}
         elevation={0}
       >
-        <Toolbar>
+        <Toolbar sx={{ height: 64, px: { xs: 2, md: 3 }, gap: 2 }}>
+          {/* Mobile menu button */}
           <IconButton
             color="inherit"
             aria-label="פתח תפריט"
             edge="start"
             onClick={handleDrawerToggle}
-            sx={{ mr: 2, display: { lg: 'none' } }}
+            sx={{ display: { lg: 'none' } }}
           >
-            <MenuIcon />
+            <span className="material-symbols-outlined">menu</span>
           </IconButton>
-
-          <Typography variant="h6" noWrap component="div">
-            TimeTask
-          </Typography>
 
           {/* Global Search */}
           <GlobalSearch />
@@ -105,30 +96,73 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
           {/* Notifications */}
           <IconButton
-            size="large"
             aria-label="הודעות"
-            color="inherit"
             onClick={handleNotificationOpen}
+            sx={{
+              p: 1,
+              borderRadius: '50%',
+              color: '#64748b',
+              '&:hover': { bgcolor: '#f1f5f9' },
+            }}
           >
-            <Badge badgeContent={0} color="error">
-              <NotificationsIcon />
+            <Badge
+              variant="dot"
+              invisible={false}
+              sx={{
+                '& .MuiBadge-dot': {
+                  top: 2,
+                  right: 2,
+                },
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 22 }}>notifications</span>
             </Badge>
           </IconButton>
 
-          {/* Profile Menu */}
-          <IconButton
-            size="large"
-            edge="end"
-            aria-label="פרופיל משתמש"
-            aria-controls={isMenuOpen ? 'profile-menu' : undefined}
-            aria-haspopup="true"
+          {/* Divider */}
+          <Box sx={{ width: '1px', height: 32, bgcolor: '#e2e8f0', mx: 0.5 }} />
+
+          {/* User Profile */}
+          <Box
             onClick={handleProfileMenuOpen}
-            color="inherit"
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1.5,
+              cursor: 'pointer',
+              py: 0.5,
+              px: 1,
+              borderRadius: '8px',
+              '&:hover': { bgcolor: '#f8fafc' },
+            }}
           >
-            <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main' }}>
-              {user?.firstName.charAt(0)}
+            <Box sx={{ textAlign: 'left', display: { xs: 'none', sm: 'block' } }}>
+              <Typography
+                sx={{ fontSize: '0.875rem', fontWeight: 600, lineHeight: 1.2, color: 'text.primary' }}
+                noWrap
+              >
+                {user?.firstName} {user?.lastName}
+              </Typography>
+              <Typography
+                sx={{ fontSize: '0.75rem', color: 'text.secondary', lineHeight: 1.2 }}
+              >
+                {user && getRoleText(user.role)}
+              </Typography>
+            </Box>
+            <Avatar
+              src={user?.avatar}
+              sx={{
+                width: 40,
+                height: 40,
+                bgcolor: 'primary.main',
+                border: '2px solid #e2e8f0',
+                fontSize: '0.9375rem',
+                fontWeight: 600,
+              }}
+            >
+              {user?.firstName?.charAt(0)}
             </Avatar>
-          </IconButton>
+          </Box>
         </Toolbar>
       </AppBar>
 
@@ -142,16 +176,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           variant={isMobile ? 'temporary' : 'permanent'}
           open={isMobile ? mobileOpen : true}
           onClose={handleDrawerToggle}
-          ModalProps={{
-            keepMounted: true, // Better mobile performance
-          }}
+          anchor="right"
+          ModalProps={{ keepMounted: true }}
           sx={{
             '& .MuiDrawer-paper': {
               boxSizing: 'border-box',
               width: DRAWER_WIDTH,
               bgcolor: 'background.paper',
-              borderRight: '1px solid',
-              borderColor: 'divider',
+              borderLeft: '1px solid',
+              borderLeftColor: 'divider',
+              borderRight: 'none',
             },
           }}
         >
@@ -164,13 +198,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         component="main"
         sx={{
           flexGrow: 1,
-          p: 3,
+          p: { xs: 2, md: 4 },
           width: { lg: `calc(100% - ${DRAWER_WIDTH}px)` },
           minHeight: '100vh',
           bgcolor: 'background.default',
         }}
       >
-        <Toolbar />
+        <Toolbar sx={{ height: 64 }} />
         {children}
       </Box>
 
@@ -185,25 +219,29 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           elevation: 0,
           sx: {
             overflow: 'visible',
-            filter: 'drop-shadow(0px 2px 8px rgba(0,0,0,0.32))',
-            mt: 1.5,
-            '& .MuiAvatar-root': {
-              width: 32,
-              height: 32,
-              ml: -0.5,
-              mr: 1,
-            },
+            border: '1px solid',
+            borderColor: 'divider',
+            boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)',
+            mt: 1,
+            minWidth: 160,
           },
         }}
-        transformOrigin={{ horizontal: 'right', vertical: 'top' }}
-        anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+        transformOrigin={{ horizontal: 'left', vertical: 'top' }}
+        anchorOrigin={{ horizontal: 'left', vertical: 'bottom' }}
       >
-        <MenuItem onClick={handleProfileMenuClose}>
-          <AccountCircleIcon sx={{ mr: 1 }} />
+        <MenuItem
+          onClick={() => { handleProfileMenuClose(); navigate('/profile') }}
+          sx={{ gap: 1.5, py: 1.5, fontSize: '0.875rem' }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 20, color: '#64748b' }}>person</span>
           פרופיל
         </MenuItem>
-        <MenuItem onClick={handleLogout}>
-          <LogoutIcon sx={{ mr: 1 }} />
+        <Divider />
+        <MenuItem
+          onClick={handleLogout}
+          sx={{ gap: 1.5, py: 1.5, fontSize: '0.875rem', color: 'error.main' }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 20 }}>logout</span>
           התנתקות
         </MenuItem>
       </Menu>
