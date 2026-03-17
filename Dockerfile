@@ -15,6 +15,10 @@ COPY client/ .
 # Set API URL for production build (relative URL since client is served by the same server)
 ENV VITE_API_BASE_URL=/api
 
+# Google OAuth Client ID (passed as build arg since Vite inlines env vars at build time)
+ARG VITE_GOOGLE_CLIENT_ID=""
+ENV VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID}
+
 # Build client
 RUN npm run build
 
