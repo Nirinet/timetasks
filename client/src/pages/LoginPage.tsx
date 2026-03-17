@@ -92,7 +92,7 @@ const LoginPage: React.FC = () => {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          px: 4,
+          px: { xs: 2, sm: 4 },
           py: 2,
           position: 'relative',
           zIndex: 1,
@@ -323,7 +323,7 @@ const LoginPage: React.FC = () => {
                   onError={() => setError('ההתחברות עם Google נכשלה')}
                   theme="outline"
                   size="large"
-                  width="352"
+                  width="300"
                   text="signin_with"
                 />
               </Box>

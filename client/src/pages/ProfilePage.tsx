@@ -241,11 +241,13 @@ const ProfilePage: React.FC = () => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 1,
               py: 2,
               borderBottom: '1px solid #f1f5f9',
             }}
           >
-            <Box>
+            <Box sx={{ minWidth: 0 }}>
               <Typography sx={{ fontSize: '0.9375rem', fontWeight: 600, color: '#0f172a' }}>
                 התראות אימייל
               </Typography>
@@ -267,10 +269,12 @@ const ProfilePage: React.FC = () => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 1,
               py: 2,
             }}
           >
-            <Box>
+            <Box sx={{ minWidth: 0 }}>
               <Typography sx={{ fontSize: '0.9375rem', fontWeight: 600, color: '#0f172a' }}>
                 התראות טיימר
               </Typography>

@@ -135,7 +135,7 @@ const GlobalSearch: React.FC = () => {
           open={open}
           anchorEl={anchorRef.current}
           placement="bottom-start"
-          sx={{ zIndex: 1300, width: anchorRef.current?.offsetWidth || 480 }}
+          sx={{ zIndex: 1300, width: anchorRef.current?.offsetWidth || 320, maxWidth: '95vw' }}
         >
           <Paper
             sx={{

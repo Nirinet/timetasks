@@ -147,7 +147,7 @@ const ReportsPage: React.FC = () => {
         </Box>
         {/* Export buttons */}
         {hoursData && activeTab === 0 && (
-          <Box sx={{ display: 'flex', gap: 1 }}>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
             {[
               { label: 'PDF', icon: 'picture_as_pdf', color: '#2d7b95', handler: () => {
                 const headers = ['פרויקט', 'שעות']
@@ -206,7 +206,7 @@ const ReportsPage: React.FC = () => {
       {activeTab === 0 && (
         <Box>
           {/* Filters */}
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(4, 1fr)' }, gap: 2, mb: 4 }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 2, mb: 4 }}>
             <Box>
               <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', mb: 0.75 }}>מתאריך</Typography>
               <DatePicker value={hoursStartDate} onChange={setHoursStartDate} slotProps={{ textField: { size: 'small', fullWidth: true } }} />
@@ -252,7 +252,7 @@ const ReportsPage: React.FC = () => {
                     <BarChart data={projectChartData} layout="vertical">
                       <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                       <XAxis type="number" tick={{ fontSize: 12, fill: '#64748b' }} />
-                      <YAxis dataKey="name" type="category" width={120} tick={{ fontSize: 12, fill: '#64748b' }} />
+                      <YAxis dataKey="name" type="category" width={80} tick={{ fontSize: 11, fill: '#64748b' }} />
                       <RechartsTooltip />
                       <Bar dataKey="hours" fill="#2d7b95" name="שעות" radius={[0, 4, 4, 0]} />
                     </BarChart>
@@ -407,8 +407,8 @@ const ReportsPage: React.FC = () => {
             <EmptyState title="אין משימות פתוחות" subtitle="כל המשימות הושלמו!" />
           ) : (
             <Card sx={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
-              <TableContainer>
-                <Table>
+              <TableContainer sx={{ overflowX: 'auto' }}>
+                <Table sx={{ minWidth: 700 }}>
                   <TableHead>
                     <TableRow>
                       <TableCell sx={thStyle}>כותרת</TableCell>

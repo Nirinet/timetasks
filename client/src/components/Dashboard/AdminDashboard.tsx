@@ -168,8 +168,8 @@ const AdminDashboard: React.FC = () => {
                 הצג הכל
               </Link>
             </Box>
-            <TableContainer>
-              <Table>
+            <TableContainer sx={{ overflowX: 'auto' }}>
+              <Table sx={{ minWidth: 600 }}>
                 <TableHead>
                   <TableRow>
                     <TableCell sx={{ bgcolor: '#f8fafc', color: '#64748b', fontWeight: 500, fontSize: '0.8125rem' }}>כותרת</TableCell>
@@ -303,8 +303,8 @@ const AdminDashboard: React.FC = () => {
             הצג הכל
           </Link>
         </Box>
-        <TableContainer>
-          <Table>
+        <TableContainer sx={{ overflowX: 'auto' }}>
+          <Table sx={{ minWidth: 500 }}>
             <TableHead>
               <TableRow>
                 <TableCell sx={{ bgcolor: '#f8fafc', color: '#64748b', fontWeight: 500 }}>שם הפרויקט</TableCell>

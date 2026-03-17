@@ -244,9 +244,9 @@ const ClientDashboard: React.FC = () => {
             צפה בכל הפרויקטים
           </Box>
         </Box>
-        <Box>
+        <Box sx={{ overflowX: 'auto' }}>
           {/* Table header */}
-          <Box sx={{ display: 'flex', px: 3, py: 1.5, bgcolor: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
+          <Box sx={{ display: 'flex', px: 3, py: 1.5, bgcolor: '#f8fafc', borderBottom: '1px solid #f1f5f9', minWidth: 500 }}>
             <Typography sx={{ flex: 2, fontSize: '0.8125rem', color: '#64748b', fontWeight: 500 }}>שם הפרויקט</Typography>
             <Typography sx={{ flex: 1, fontSize: '0.8125rem', color: '#64748b', fontWeight: 500 }}>סטטוס</Typography>
             <Typography sx={{ flex: 1, fontSize: '0.8125rem', color: '#64748b', fontWeight: 500 }}>משימות</Typography>
@@ -265,6 +265,7 @@ const ClientDashboard: React.FC = () => {
                   alignItems: 'center',
                   px: 3,
                   py: 2,
+                  minWidth: 500,
                   borderBottom: '1px solid #f1f5f9',
                   '&:hover': { bgcolor: '#f8fafc' },
                   cursor: 'pointer',
@@ -312,8 +313,10 @@ const ClientDashboard: React.FC = () => {
           bgcolor: 'rgba(45,123,149,0.05)',
           border: '1px solid rgba(45,123,149,0.1)',
           display: 'flex',
-          alignItems: 'center',
+          flexDirection: { xs: 'column', sm: 'row' },
+          alignItems: { xs: 'stretch', sm: 'center' },
           justifyContent: 'space-between',
+          gap: 2,
         }}
       >
         <Box>

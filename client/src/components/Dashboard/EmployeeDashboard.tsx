@@ -189,7 +189,7 @@ const EmployeeDashboard: React.FC = () => {
   return (
     <Grid container spacing={3}>
       {/* Stats Cards */}
-      <Grid item xs={12} sm={6} md={2.4}>
+      <Grid item xs={6} sm={4} md={2}>
         <StatCard
           title="המשימות שלי"
           value={stats.myTasks}
@@ -197,7 +197,7 @@ const EmployeeDashboard: React.FC = () => {
           color="primary"
         />
       </Grid>
-      <Grid item xs={12} sm={6} md={2.4}>
+      <Grid item xs={6} sm={4} md={2}>
         <StatCard
           title="משימות פעילות"
           value={stats.activeTasks}
@@ -205,7 +205,7 @@ const EmployeeDashboard: React.FC = () => {
           color="info"
         />
       </Grid>
-      <Grid item xs={12} sm={6} md={2.4}>
+      <Grid item xs={6} sm={4} md={2}>
         <StatCard
           title="הושלמו השבוע"
           value={stats.completedThisWeek}
@@ -213,7 +213,7 @@ const EmployeeDashboard: React.FC = () => {
           color="success"
         />
       </Grid>
-      <Grid item xs={12} sm={6} md={2}>
+      <Grid item xs={6} sm={4} md={2}>
         <StatCard
           title="שעות היום"
           value={Math.round(stats.hoursToday * 10) / 10}
@@ -221,7 +221,7 @@ const EmployeeDashboard: React.FC = () => {
           color="secondary"
         />
       </Grid>
-      <Grid item xs={12} sm={6} md={2.4}>
+      <Grid item xs={6} sm={4} md={2}>
         <StatCard
           title="שעות השבוע"
           value={Math.round(stats.hoursThisWeek)}
@@ -229,7 +229,7 @@ const EmployeeDashboard: React.FC = () => {
           color="warning"
         />
       </Grid>
-      <Grid item xs={12} sm={6} md={2.4}>
+      <Grid item xs={6} sm={4} md={2}>
         <StatCard
           title="משימות באיחור"
           value={stats.overdueTasks}

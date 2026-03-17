@@ -252,7 +252,7 @@ const UsersPage: React.FC = () => {
           <EmptyState title="אין משתמשים" subtitle="הוסף משתמש חדש כדי להתחיל" />
         ) : (
           <TableContainer sx={{ overflowX: 'auto' }}>
-            <Table sx={{ minWidth: 800 }}>
+            <Table sx={{ minWidth: 700 }}>
               <TableHead>
                 <TableRow>
                   <TableCell sx={{ bgcolor: 'rgba(45,123,149,0.05)', color: 'rgba(45,123,149,0.7)', fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>שם משתמש</TableCell>
@@ -405,7 +405,7 @@ const UsersPage: React.FC = () => {
                 <TextField label="סיסמה" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required fullWidth size="small" helperText="לפחות 8 תווים, אות גדולה, אות קטנה ומספר" />
               </>
             )}
-            <Box sx={{ display: 'flex', gap: 2 }}>
+            <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2 }}>
               <TextField label="שם פרטי" value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} required fullWidth size="small" />
               <TextField label="שם משפחה" value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} required fullWidth size="small" />
             </Box>

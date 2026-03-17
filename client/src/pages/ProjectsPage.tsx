@@ -665,7 +665,7 @@ const ProjectsPage: React.FC = () => {
                 </Typography>
               </Box>
             )}
-            <Box sx={{ display: 'flex', gap: 2 }}>
+            <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2 }}>
               <DatePicker
                 label="תאריך התחלה"
                 value={form.startDate}
@@ -834,8 +834,8 @@ const ProjectsPage: React.FC = () => {
               {detailTab === 0 && (
                 <>
                   {detailProject.tasks && detailProject.tasks.length > 0 ? (
-                    <Box sx={{ borderRadius: '8px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-                      <Box component="table" sx={{ width: '100%', borderCollapse: 'collapse', textAlign: 'right' }}>
+                    <Box sx={{ borderRadius: '8px', border: '1px solid #e2e8f0', overflow: 'hidden', overflowX: 'auto' }}>
+                      <Box component="table" sx={{ width: '100%', minWidth: 450, borderCollapse: 'collapse', textAlign: 'right' }}>
                         <Box component="thead" sx={{ bgcolor: '#f8fafc' }}>
                           <Box component="tr">
                             {['כותרת', 'סטטוס', 'עדיפות', 'דדליין'].map((h) => (
@@ -986,8 +986,8 @@ const ProjectsPage: React.FC = () => {
 
                   {/* Clients List */}
                   {detailProject.clients && detailProject.clients.length > 0 ? (
-                    <Box sx={{ borderRadius: '8px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-                      <Box component="table" sx={{ width: '100%', borderCollapse: 'collapse', textAlign: 'right' }}>
+                    <Box sx={{ borderRadius: '8px', border: '1px solid #e2e8f0', overflow: 'hidden', overflowX: 'auto' }}>
+                      <Box component="table" sx={{ width: '100%', minWidth: 400, borderCollapse: 'collapse', textAlign: 'right' }}>
                         <Box component="thead" sx={{ bgcolor: '#f8fafc' }}>
                           <Box component="tr">
                             {['שם לקוח', 'איש קשר', 'תאריך שיוך', ''].map((h, i) => (
@@ -1095,8 +1095,8 @@ const ProjectsPage: React.FC = () => {
 
                   {/* Members List */}
                   {detailProject.assignedUsers && detailProject.assignedUsers.length > 0 ? (
-                    <Box sx={{ borderRadius: '8px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-                      <Box component="table" sx={{ width: '100%', borderCollapse: 'collapse', textAlign: 'right' }}>
+                    <Box sx={{ borderRadius: '8px', border: '1px solid #e2e8f0', overflow: 'hidden', overflowX: 'auto' }}>
+                      <Box component="table" sx={{ width: '100%', minWidth: 400, borderCollapse: 'collapse', textAlign: 'right' }}>
                         <Box component="thead" sx={{ bgcolor: '#f8fafc' }}>
                           <Box component="tr">
                             {['שם', 'תפקיד', 'תאריך שיוך', ''].map((h, i) => (

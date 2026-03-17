@@ -344,7 +344,7 @@ const TasksPage: React.FC = () => {
         {/* Toolbar */}
         <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', p: 2, gap: 2 }}>
           {/* View Mode Toggle */}
-          <Box sx={{ display: 'flex', gap: 0.5, bgcolor: '#f1f5f9', p: 0.5, borderRadius: '8px', overflowX: 'auto', flexShrink: 0 }}>
+          <Box sx={{ display: 'flex', gap: 0.5, bgcolor: '#f1f5f9', p: 0.5, borderRadius: '8px', overflowX: 'auto' }}>
             {viewModes.map((vm) => (
               <Box
                 key={vm.value}
@@ -381,7 +381,7 @@ const TasksPage: React.FC = () => {
               onChange={(e) => setFilterProject(e.target.value)}
               size="small"
               sx={{
-                minWidth: 160,
+                minWidth: { xs: 120, sm: 160 },
                 '& .MuiOutlinedInput-root': { bgcolor: '#f8fafc', borderRadius: '8px', fontSize: '0.875rem' },
               }}
               SelectProps={{ displayEmpty: true }}
@@ -397,7 +397,7 @@ const TasksPage: React.FC = () => {
               onChange={(e) => setFilterStatus(e.target.value)}
               size="small"
               sx={{
-                minWidth: 140,
+                minWidth: { xs: 110, sm: 140 },
                 '& .MuiOutlinedInput-root': { bgcolor: '#f8fafc', borderRadius: '8px', fontSize: '0.875rem' },
               }}
               SelectProps={{ displayEmpty: true }}
@@ -414,7 +414,7 @@ const TasksPage: React.FC = () => {
               onChange={(e) => setFilterPriority(e.target.value)}
               size="small"
               sx={{
-                minWidth: 140,
+                minWidth: { xs: 110, sm: 140 },
                 '& .MuiOutlinedInput-root': { bgcolor: '#f8fafc', borderRadius: '8px', fontSize: '0.875rem' },
               }}
               SelectProps={{ displayEmpty: true }}
@@ -437,7 +437,7 @@ const TasksPage: React.FC = () => {
               <EmptyState title="אין משימות" subtitle="הוסף משימה חדשה או שנה את הפילטרים" />
             ) : (
               <TableContainer sx={{ overflowX: 'auto' }}>
-                <Table sx={{ minWidth: 800 }}>
+                <Table sx={{ minWidth: 700 }}>
                   <TableHead>
                     <TableRow>
                       <TableCell sx={{ bgcolor: '#f8fafc', color: '#64748b', fontWeight: 600, fontSize: '0.8125rem' }}>כותרת המשימה</TableCell>
@@ -605,7 +605,7 @@ const TasksPage: React.FC = () => {
                 ))}
               </TextField>
             )}
-            <Box sx={{ display: 'flex', gap: 2 }}>
+            <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2 }}>
               <TextField select label="עדיפות" value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value as Priority })} fullWidth size="small">
                 <MenuItem value="URGENT_IMPORTANT">דחוף וחשוב</MenuItem>
                 <MenuItem value="IMPORTANT">חשוב</MenuItem>
@@ -621,7 +621,7 @@ const TasksPage: React.FC = () => {
                 </TextField>
               )}
             </Box>
-            <Box sx={{ display: 'flex', gap: 2 }}>
+            <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2 }}>
               <DatePicker label="דדליין" value={form.deadline} onChange={(date) => setForm({ ...form, deadline: date })} slotProps={{ textField: { fullWidth: true, size: 'small' } }} />
               <TextField label="הערכת זמן (שעות)" type="number" value={form.timeEstimate} onChange={(e) => setForm({ ...form, timeEstimate: e.target.value })} fullWidth size="small" />
             </Box>

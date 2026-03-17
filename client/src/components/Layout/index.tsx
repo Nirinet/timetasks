@@ -62,7 +62,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   }
 
   return (
-    <Box sx={{ display: 'flex' }}>
+    <Box sx={{ display: 'flex', minWidth: 0, overflow: 'hidden' }}>
       {/* App Bar */}
       <AppBar
         position="fixed"
@@ -198,8 +198,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         component="main"
         sx={{
           flexGrow: 1,
-          p: { xs: 2, md: 4 },
+          p: { xs: 1.5, sm: 2, md: 4 },
           width: { lg: `calc(100% - ${DRAWER_WIDTH}px)` },
+          minWidth: 0,
+          maxWidth: '100%',
+          overflowX: 'hidden',
           minHeight: '100vh',
           bgcolor: 'background.default',
         }}

@@ -204,7 +204,7 @@ const ClientsPage: React.FC = () => {
         ) : (
           <>
             <TableContainer sx={{ overflowX: 'auto' }}>
-              <Table sx={{ minWidth: 750 }}>
+              <Table sx={{ minWidth: 650 }}>
                 <TableHead>
                   <TableRow>
                     {['שם העסק', 'איש קשר', 'פרטי התקשרות', 'פרויקטים', 'סטטוס', 'פעולות'].map((h) => (
@@ -290,7 +290,7 @@ const ClientsPage: React.FC = () => {
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
             <TextField label="שם לקוח" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required fullWidth size="small" />
             <TextField label="איש קשר" value={form.contactPerson} onChange={(e) => setForm({ ...form, contactPerson: e.target.value })} required fullWidth size="small" />
-            <Box sx={{ display: 'flex', gap: 2 }}>
+            <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2 }}>
               <TextField label='דוא"ל' type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} fullWidth size="small" />
               <TextField label="טלפון" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} fullWidth size="small" />
             </Box>
@@ -328,7 +328,7 @@ const ClientsPage: React.FC = () => {
         <DialogContent>
           {detailClient && (
             <Box sx={{ pt: 2 }}>
-              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 3, mb: 3 }}>
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' }, gap: 3, mb: 3 }}>
                 <Box>
                   <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', mb: 0.5 }}>איש קשר</Typography>
                   <Typography sx={{ fontSize: '0.875rem', fontWeight: 500 }}>{detailClient.contactPerson}</Typography>
