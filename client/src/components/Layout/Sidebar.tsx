@@ -31,6 +31,7 @@ const menuItems: MenuItem[] = [
   { label: 'פרויקטים', path: '/projects', icon: 'folder_open', roles: ['ADMIN', 'EMPLOYEE', 'CLIENT'] },
   { label: 'לקוחות', path: '/clients', icon: 'person_search', roles: ['ADMIN', 'EMPLOYEE'] },
   { label: 'מעקב זמן', path: '/time-tracking', icon: 'schedule', roles: ['ADMIN', 'EMPLOYEE', 'CLIENT'] },
+  { label: 'טיימר נייד', path: '/timer', icon: 'phone_iphone', roles: ['ADMIN', 'EMPLOYEE'] },
   { label: 'דוחות', path: '/reports', icon: 'bar_chart', roles: ['ADMIN', 'EMPLOYEE', 'CLIENT'] },
   { label: 'משתמשים', path: '/users', icon: 'group', roles: ['ADMIN'] },
   { label: 'הגדרות', path: '/settings', icon: 'settings', roles: ['ADMIN'] },

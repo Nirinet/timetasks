@@ -17,6 +17,7 @@ import UsersPage from '@/pages/UsersPage'
 import ProfilePage from '@/pages/ProfilePage'
 import SettingsPage from '@/pages/SettingsPage'
 import NotFoundPage from '@/pages/NotFoundPage'
+import MobileTimerPage from '@/pages/MobileTimerPage'
 
 function App() {
   const { user, loading } = useAuth()
@@ -46,33 +47,43 @@ function App() {
   }
 
   return (
-    <Layout>
-      <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/tasks" element={<TasksPage />} />
-        <Route path="/projects" element={<ProjectsPage />} />
-        <Route path="/time-tracking" element={<TimeTrackingPage />} />
-        <Route path="/reports" element={<ReportsPage />} />
-        <Route path="/profile" element={<ProfilePage />} />
+    <Routes>
+      {/* Mobile Timer — standalone page (no Layout) */}
+      {(user.role === 'ADMIN' || user.role === 'EMPLOYEE') && (
+        <Route path="/timer" element={<MobileTimerPage />} />
+      )}
 
-        {/* Admin and Employee routes */}
-        {(user.role === 'ADMIN' || user.role === 'EMPLOYEE') && (
-          <>
-            <Route path="/clients" element={<ClientsPage />} />
-          </>
-        )}
+      {/* All other routes — inside Layout */}
+      <Route path="*" element={
+        <Layout>
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/tasks" element={<TasksPage />} />
+            <Route path="/projects" element={<ProjectsPage />} />
+            <Route path="/time-tracking" element={<TimeTrackingPage />} />
+            <Route path="/reports" element={<ReportsPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
 
-        {/* Admin only routes */}
-        {user.role === 'ADMIN' && (
-          <>
-            <Route path="/users" element={<UsersPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-          </>
-        )}
+            {/* Admin and Employee routes */}
+            {(user.role === 'ADMIN' || user.role === 'EMPLOYEE') && (
+              <>
+                <Route path="/clients" element={<ClientsPage />} />
+              </>
+            )}
 
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </Layout>
+            {/* Admin only routes */}
+            {user.role === 'ADMIN' && (
+              <>
+                <Route path="/users" element={<UsersPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
+              </>
+            )}
+
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Layout>
+      } />
+    </Routes>
   )
 }
 
