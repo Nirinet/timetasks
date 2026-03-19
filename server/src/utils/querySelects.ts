@@ -70,6 +70,13 @@ export const TASK_INCLUDE_LIST = {
       }
     }
   },
+  timeRecords: {
+    select: {
+      id: true,
+      duration: true,
+      status: true
+    }
+  },
   _count: {
     select: {
       subtasks: true,

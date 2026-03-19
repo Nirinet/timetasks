@@ -38,17 +38,32 @@ interface ActiveTimer {
   }
 }
 
+interface TimeRecord {
+  id: string
+  duration?: number
+  status: string
+}
+
 interface Task {
   id: string
   title: string
   status: string
   priority: string
   project: { id?: string; name: string }
+  timeRecords?: TimeRecord[]
+  _count?: { timeRecords: number }
 }
 
 interface Project {
   id: string
   name: string
+}
+
+interface ManualEntryForm {
+  date: string
+  startTime: string
+  endTime: string
+  description: string
 }
 
 // ─── Priority helpers ──────────────────────────────────────
@@ -127,6 +142,15 @@ const MobileTimerPage: React.FC = () => {
   // Loading states for start/stop
   const [startingTaskId, setStartingTaskId] = useState<string | null>(null)
   const [stoppingTimerId, setStoppingTimerId] = useState<string | null>(null)
+
+  // Manual time entry
+  const [manualEntryOpen, setManualEntryOpen] = useState(false)
+  const [manualEntryTaskId, setManualEntryTaskId] = useState<string | null>(null)
+  const [manualEntryTaskTitle, setManualEntryTaskTitle] = useState('')
+  const [manualForm, setManualForm] = useState<ManualEntryForm>({
+    date: '', startTime: '', endTime: '', description: '',
+  })
+  const [savingManual, setSavingManual] = useState(false)
 
   // Screen Wake Lock
   const wakeLockRef = useRef<WakeLockSentinel | null>(null)
@@ -241,6 +265,62 @@ const MobileTimerPage: React.FC = () => {
     } finally {
       setCreating(false)
     }
+  }
+
+  // ─── Manual Time Entry ──────────────────────────────
+  const openManualEntry = (taskId: string, taskTitle: string) => {
+    const now = new Date()
+    const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`
+    setManualEntryTaskId(taskId)
+    setManualEntryTaskTitle(taskTitle)
+    setManualForm({
+      date: now.toISOString().split('T')[0],
+      startTime: timeStr,
+      endTime: timeStr,
+      description: '',
+    })
+    setManualEntryOpen(true)
+  }
+
+  const handleManualEntry = async () => {
+    if (!manualEntryTaskId || !manualForm.date || !manualForm.startTime || !manualForm.endTime) {
+      toast.error('יש למלא תאריך, שעת התחלה ושעת סיום')
+      return
+    }
+    const startDT = new Date(`${manualForm.date}T${manualForm.startTime}:00`)
+    const endDT = new Date(`${manualForm.date}T${manualForm.endTime}:00`)
+    if (endDT <= startDT) {
+      toast.error('שעת סיום חייבת להיות אחרי שעת התחלה')
+      return
+    }
+    setSavingManual(true)
+    try {
+      await api.post('/time/manual', {
+        taskId: manualEntryTaskId,
+        date: startDT.toISOString(),
+        startTime: startDT.toISOString(),
+        endTime: endDT.toISOString(),
+        description: manualForm.description || undefined,
+      })
+      toast.success('תזמון נוסף בהצלחה')
+      setManualEntryOpen(false)
+      await fetchData()
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'שגיאה בהוספת תזמון')
+    } finally {
+      setSavingManual(false)
+    }
+  }
+
+  const getManualDuration = (): string => {
+    if (!manualForm.startTime || !manualForm.endTime) return ''
+    const startDT = new Date(`${manualForm.date || '2000-01-01'}T${manualForm.startTime}:00`)
+    const endDT = new Date(`${manualForm.date || '2000-01-01'}T${manualForm.endTime}:00`)
+    const diffMin = Math.round((endDT.getTime() - startDT.getTime()) / (1000 * 60))
+    if (diffMin <= 0) return ''
+    const h = Math.floor(diffMin / 60)
+    const m = diffMin % 60
+    return `${h}:${m.toString().padStart(2, '0')}`
   }
 
   // ─── Filtered Tasks ───────────────────────────────────
@@ -590,54 +670,68 @@ const MobileTimerPage: React.FC = () => {
                       }}
                     >
                       {/* Play/Active button */}
-                      <IconButton
-                        onClick={() => !isTimerActive && handleStart(task.id)}
-                        disabled={isTimerActive || maxTimersReached || isStarting}
-                        sx={{
-                          width: 44,
-                          height: 44,
-                          flexShrink: 0,
-                          bgcolor: isTimerActive
-                            ? alpha('#2d7b95', 0.1)
-                            : maxTimersReached
-                            ? '#f1f5f9'
-                            : '#2d7b95',
-                          color: isTimerActive
-                            ? '#2d7b95'
-                            : maxTimersReached
-                            ? '#cbd5e1'
-                            : 'white',
-                          '&:hover': {
-                            bgcolor: isTimerActive
-                              ? alpha('#2d7b95', 0.15)
-                              : '#256a80',
-                          },
-                          '&.Mui-disabled': {
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, flexShrink: 0 }}>
+                        <IconButton
+                          onClick={() => !isTimerActive && handleStart(task.id)}
+                          disabled={isTimerActive || maxTimersReached || isStarting}
+                          sx={{
+                            width: 44,
+                            height: 44,
                             bgcolor: isTimerActive
                               ? alpha('#2d7b95', 0.1)
-                              : '#f1f5f9',
-                            color: isTimerActive ? '#2d7b95' : '#cbd5e1',
-                          },
-                        }}
-                      >
-                        {isStarting ? (
-                          <CircularProgress size={20} sx={{ color: 'white' }} />
-                        ) : isTimerActive ? (
-                          <span
-                            className="material-symbols-outlined"
-                            style={{ fontSize: 22 }}
-                          >
-                            timer
-                          </span>
-                        ) : (
-                          <span
-                            className="material-symbols-outlined"
-                            style={{ fontSize: 22 }}
-                          >
-                            play_arrow
-                          </span>
-                        )}
-                      </IconButton>
+                              : maxTimersReached
+                              ? '#f1f5f9'
+                              : '#2d7b95',
+                            color: isTimerActive
+                              ? '#2d7b95'
+                              : maxTimersReached
+                              ? '#cbd5e1'
+                              : 'white',
+                            '&:hover': {
+                              bgcolor: isTimerActive
+                                ? alpha('#2d7b95', 0.15)
+                                : '#256a80',
+                            },
+                            '&.Mui-disabled': {
+                              bgcolor: isTimerActive
+                                ? alpha('#2d7b95', 0.1)
+                                : '#f1f5f9',
+                              color: isTimerActive ? '#2d7b95' : '#cbd5e1',
+                            },
+                          }}
+                        >
+                          {isStarting ? (
+                            <CircularProgress size={20} sx={{ color: 'white' }} />
+                          ) : isTimerActive ? (
+                            <span
+                              className="material-symbols-outlined"
+                              style={{ fontSize: 22 }}
+                            >
+                              timer
+                            </span>
+                          ) : (
+                            <span
+                              className="material-symbols-outlined"
+                              style={{ fontSize: 22 }}
+                            >
+                              play_arrow
+                            </span>
+                          )}
+                        </IconButton>
+                        <IconButton
+                          onClick={() => openManualEntry(task.id, task.title)}
+                          sx={{
+                            width: 44,
+                            height: 28,
+                            borderRadius: '8px',
+                            bgcolor: '#f1f5f9',
+                            color: '#64748b',
+                            '&:hover': { bgcolor: alpha('#2d7b95', 0.1), color: '#2d7b95' },
+                          }}
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>edit_calendar</span>
+                        </IconButton>
+                      </Box>
 
                       {/* Task details */}
                       <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -700,6 +794,30 @@ const MobileTimerPage: React.FC = () => {
                               '& .MuiChip-label': { px: 0.75 },
                             }}
                           />
+                          {task.timeRecords && task.timeRecords.length > 0 && (() => {
+                            const totalMin = task.timeRecords
+                              .filter(tr => tr.status === 'COMPLETED' && tr.duration)
+                              .reduce((sum, tr) => sum + (tr.duration || 0), 0)
+                            if (totalMin <= 0) return null
+                            const h = Math.floor(totalMin / 60)
+                            const m = totalMin % 60
+                            return (
+                              <Chip
+                                icon={<span className="material-symbols-outlined" style={{ fontSize: 12, color: '#2d7b95' }}>schedule</span>}
+                                label={`${h}:${m.toString().padStart(2, '0')}`}
+                                size="small"
+                                sx={{
+                                  height: 18,
+                                  fontSize: '0.65rem',
+                                  fontWeight: 600,
+                                  bgcolor: alpha('#2d7b95', 0.1),
+                                  color: '#2d7b95',
+                                  '& .MuiChip-label': { px: 0.5 },
+                                  '& .MuiChip-icon': { ml: 0.25, mr: -0.25 },
+                                }}
+                              />
+                            )
+                          })()}
                         </Box>
                       </Box>
                     </CardContent>
@@ -730,6 +848,123 @@ const MobileTimerPage: React.FC = () => {
           add
         </span>
       </Fab>
+
+      {/* ── Manual Time Entry Dialog ─────────────────── */}
+      <Dialog
+        open={manualEntryOpen}
+        onClose={() => setManualEntryOpen(false)}
+        fullWidth
+        maxWidth="xs"
+        PaperProps={{
+          sx: { borderRadius: '16px', direction: 'rtl' },
+        }}
+      >
+        <DialogTitle
+          sx={{
+            fontWeight: 700,
+            fontSize: '1.05rem',
+            pb: 1,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+          }}
+        >
+          <span
+            className="material-symbols-outlined"
+            style={{ fontSize: 22, color: '#2d7b95' }}
+          >
+            edit_calendar
+          </span>
+          הזנת תזמון ידני
+        </DialogTitle>
+        <DialogContent sx={{ pt: '8px !important' }}>
+          <Typography sx={{ fontSize: '0.8rem', color: '#64748b', mb: 2 }} noWrap>
+            {manualEntryTaskTitle}
+          </Typography>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <TextField
+              label="תאריך"
+              type="date"
+              value={manualForm.date}
+              onChange={(e) => setManualForm({ ...manualForm, date: e.target.value })}
+              fullWidth
+              size="small"
+              InputLabelProps={{ shrink: true }}
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: '10px' } }}
+            />
+            <Box sx={{ display: 'flex', gap: 1.5 }}>
+              <TextField
+                label="שעת התחלה"
+                type="time"
+                value={manualForm.startTime}
+                onChange={(e) => setManualForm({ ...manualForm, startTime: e.target.value })}
+                fullWidth
+                size="small"
+                InputLabelProps={{ shrink: true }}
+                inputProps={{ step: 60 }}
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: '10px' } }}
+              />
+              <TextField
+                label="שעת סיום"
+                type="time"
+                value={manualForm.endTime}
+                onChange={(e) => setManualForm({ ...manualForm, endTime: e.target.value })}
+                fullWidth
+                size="small"
+                InputLabelProps={{ shrink: true }}
+                inputProps={{ step: 60 }}
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: '10px' } }}
+              />
+            </Box>
+            {getManualDuration() && (
+              <Box sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1,
+                p: 1.5,
+                bgcolor: alpha('#2d7b95', 0.05),
+                borderRadius: '10px',
+              }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#2d7b95' }}>timer</span>
+                <Typography sx={{ fontSize: '0.875rem', color: '#2d7b95', fontWeight: 600 }}>
+                  זמן עבודה: {getManualDuration()}
+                </Typography>
+              </Box>
+            )}
+            <TextField
+              label="תיאור (אופציונלי)"
+              value={manualForm.description}
+              onChange={(e) => setManualForm({ ...manualForm, description: e.target.value })}
+              fullWidth
+              size="small"
+              multiline
+              rows={2}
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: '10px' } }}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button
+            onClick={() => setManualEntryOpen(false)}
+            sx={{ borderRadius: '8px', color: '#64748b' }}
+          >
+            ביטול
+          </Button>
+          <Button
+            onClick={handleManualEntry}
+            variant="contained"
+            disabled={savingManual || !manualForm.date || !manualForm.startTime || !manualForm.endTime}
+            sx={{
+              borderRadius: '8px',
+              bgcolor: '#2d7b95',
+              '&:hover': { bgcolor: '#256a80' },
+              fontWeight: 600,
+            }}
+          >
+            {savingManual ? 'שומר...' : 'שמור תזמון'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* ── New Task Dialog ───────────────────────────── */}
       <Dialog

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   Box,
   Card,
@@ -27,6 +27,8 @@ import {
   ListItemText,
   Divider,
   Avatar,
+  CircularProgress,
+  alpha,
 } from '@mui/material'
 import { DatePicker } from '@mui/x-date-pickers/DatePicker'
 import toast from 'react-hot-toast'
@@ -34,7 +36,7 @@ import toast from 'react-hot-toast'
 import api from '@/services/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { Task, Project, User, Client, TaskStatus, Priority } from '@/types'
-import { formatDate, formatDuration, getRoleLabel, formatFileSize } from '@/utils/formatters'
+import { formatDate, formatDuration, formatTime, getRoleLabel, formatFileSize } from '@/utils/formatters'
 import StatusChip from '@/components/StatusChip'
 import PriorityChip from '@/components/PriorityChip'
 import EmptyState from '@/components/EmptyState'
@@ -43,6 +45,54 @@ import KanbanBoard from '@/components/KanbanBoard'
 import CalendarView from '@/components/CalendarView'
 import GanttChart from '@/components/GanttChart'
 import TeamView from '@/components/TeamView'
+
+// ─── Live Timer Display ──────────────────────────────────
+const LiveTimer: React.FC<{ startTime: string }> = ({ startTime }) => {
+  const [elapsed, setElapsed] = useState('')
+
+  useEffect(() => {
+    const calc = () => {
+      const diff = Math.floor((Date.now() - new Date(startTime).getTime()) / 1000)
+      const h = Math.floor(diff / 3600)
+      const m = Math.floor((diff % 3600) / 60)
+      const s = diff % 60
+      setElapsed(
+        `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+      )
+    }
+    calc()
+    const interval = setInterval(calc, 1000)
+    return () => clearInterval(interval)
+  }, [startTime])
+
+  return (
+    <Typography
+      sx={{
+        fontFamily: '"Inter", monospace',
+        fontSize: '1rem',
+        fontWeight: 700,
+        color: '#2d7b95',
+        letterSpacing: '0.05em',
+        direction: 'ltr',
+      }}
+    >
+      {elapsed}
+    </Typography>
+  )
+}
+
+interface ActiveTimer {
+  id: string
+  startTime: string
+  task: { id?: string; title: string }
+}
+
+interface ManualEntryForm {
+  date: string
+  startTime: string
+  endTime: string
+  description: string
+}
 
 type ViewMode = 'table' | 'kanban' | 'calendar' | 'gantt' | 'team'
 
@@ -81,6 +131,8 @@ const viewModes: { value: ViewMode; label: string; icon: string }[] = [
 const TasksPage: React.FC = () => {
   const { user } = useAuth()
   const isAdmin = user?.role === 'ADMIN'
+  const isClient = user?.role === 'CLIENT'
+  const canManageTimers = user?.role === 'ADMIN' || user?.role === 'EMPLOYEE'
 
   const [viewMode, setViewMode] = useState<ViewMode>('table')
   const [tasks, setTasks] = useState<Task[]>([])
@@ -111,6 +163,20 @@ const TasksPage: React.FC = () => {
   const [detailTab, setDetailTab] = useState(0)
   const [newComment, setNewComment] = useState('')
   const [commentSaving, setCommentSaving] = useState(false)
+
+  // Timer & Time tracking
+  const [activeTimers, setActiveTimers] = useState<ActiveTimer[]>([])
+  const [startingTimer, setStartingTimer] = useState(false)
+  const [stoppingTimerId, setStoppingTimerId] = useState<string | null>(null)
+  const [manualEntryOpen, setManualEntryOpen] = useState(false)
+  const [manualEntryTaskId, setManualEntryTaskId] = useState<string | null>(null)
+  const [manualForm, setManualForm] = useState<ManualEntryForm>({
+    date: new Date().toISOString().split('T')[0],
+    startTime: '',
+    endTime: '',
+    description: '',
+  })
+  const [savingManual, setSavingManual] = useState(false)
 
   const fetchTasks = async () => {
     try {
@@ -145,13 +211,122 @@ const TasksPage: React.FC = () => {
     }
   }
 
+  // Fetch active timers
+  const fetchActiveTimers = useCallback(async () => {
+    if (!canManageTimers) return
+    try {
+      const res = await api.get('/time/active')
+      setActiveTimers(res.data.data?.activeTimers || [])
+    } catch {
+      // silent
+    }
+  }, [canManageTimers])
+
   useEffect(() => {
     fetchTasks()
   }, [filterProject, filterStatus, filterPriority])
 
   useEffect(() => {
     fetchDropdowns()
+    fetchActiveTimers()
   }, [])
+
+  // Timer controls
+  const handleStartTimer = async (taskId: string) => {
+    setStartingTimer(true)
+    try {
+      await api.post('/time/start', { taskId })
+      toast.success('טיימר הופעל')
+      await fetchActiveTimers()
+      // Refresh task detail to show updated time records
+      if (taskDetail) {
+        const response = await api.get(`/tasks/${taskDetail.id}`)
+        setTaskDetail(response.data.data?.task || response.data.data)
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'שגיאה בהפעלת טיימר')
+    } finally {
+      setStartingTimer(false)
+    }
+  }
+
+  const handleStopTimer = async (timerId: string) => {
+    setStoppingTimerId(timerId)
+    try {
+      await api.post(`/time/stop/${timerId}`)
+      toast.success('טיימר נעצר')
+      await fetchActiveTimers()
+      // Refresh task detail to show updated time records
+      if (taskDetail) {
+        const response = await api.get(`/tasks/${taskDetail.id}`)
+        setTaskDetail(response.data.data?.task || response.data.data)
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'שגיאה בעצירת טיימר')
+    } finally {
+      setStoppingTimerId(null)
+    }
+  }
+
+  // Manual time entry
+  const openManualEntry = (taskId: string) => {
+    const now = new Date()
+    const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`
+    setManualEntryTaskId(taskId)
+    setManualForm({
+      date: now.toISOString().split('T')[0],
+      startTime: timeStr,
+      endTime: timeStr,
+      description: '',
+    })
+    setManualEntryOpen(true)
+  }
+
+  const handleManualEntry = async () => {
+    if (!manualEntryTaskId || !manualForm.date || !manualForm.startTime || !manualForm.endTime) {
+      toast.error('יש למלא תאריך, שעת התחלה ושעת סיום')
+      return
+    }
+    const startDT = new Date(`${manualForm.date}T${manualForm.startTime}:00`)
+    const endDT = new Date(`${manualForm.date}T${manualForm.endTime}:00`)
+    if (endDT <= startDT) {
+      toast.error('שעת סיום חייבת להיות אחרי שעת התחלה')
+      return
+    }
+    setSavingManual(true)
+    try {
+      await api.post('/time/manual', {
+        taskId: manualEntryTaskId,
+        date: startDT.toISOString(),
+        startTime: startDT.toISOString(),
+        endTime: endDT.toISOString(),
+        description: manualForm.description || undefined,
+      })
+      toast.success('תזמון נוסף בהצלחה')
+      setManualEntryOpen(false)
+      // Refresh task detail
+      if (taskDetail) {
+        const response = await api.get(`/tasks/${taskDetail.id}`)
+        setTaskDetail(response.data.data?.task || response.data.data)
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'שגיאה בהוספת תזמון')
+    } finally {
+      setSavingManual(false)
+    }
+  }
+
+  // Calculate manual entry duration for display
+  const getManualDuration = (): string => {
+    if (!manualForm.startTime || !manualForm.endTime) return ''
+    const startDT = new Date(`${manualForm.date || '2000-01-01'}T${manualForm.startTime}:00`)
+    const endDT = new Date(`${manualForm.date || '2000-01-01'}T${manualForm.endTime}:00`)
+    const diffMin = Math.round((endDT.getTime() - startDT.getTime()) / (1000 * 60))
+    if (diffMin <= 0) return ''
+    const h = Math.floor(diffMin / 60)
+    const m = diffMin % 60
+    return `${h}:${m.toString().padStart(2, '0')}`
+  }
 
   const handleCreate = () => {
     setIsEditing(false)
@@ -446,6 +621,7 @@ const TasksPage: React.FC = () => {
                       <TableCell sx={{ bgcolor: '#f8fafc', color: '#64748b', fontWeight: 600, fontSize: '0.8125rem', textAlign: 'center' }}>סטטוס</TableCell>
                       <TableCell sx={{ bgcolor: '#f8fafc', color: '#64748b', fontWeight: 600, fontSize: '0.8125rem' }}>מוקצה ל</TableCell>
                       <TableCell sx={{ bgcolor: '#f8fafc', color: '#64748b', fontWeight: 600, fontSize: '0.8125rem' }}>דדליין</TableCell>
+                      <TableCell sx={{ bgcolor: '#f8fafc', color: '#64748b', fontWeight: 600, fontSize: '0.8125rem', textAlign: 'center' }}>זמן עבודה</TableCell>
                       <TableCell sx={{ bgcolor: '#f8fafc', color: '#64748b', fontWeight: 600, fontSize: '0.8125rem', textAlign: 'center' }}>פעולות</TableCell>
                     </TableRow>
                   </TableHead>
@@ -494,6 +670,20 @@ const TasksPage: React.FC = () => {
                             <Typography sx={{ color: '#94a3b8', fontSize: '0.875rem' }}>-</Typography>
                           )}
                         </TableCell>
+                        <TableCell onClick={() => handleViewDetail(task)} sx={{ textAlign: 'center' }}>
+                          {(() => {
+                            const totalMin = (task.timeRecords || [])
+                              .filter(tr => tr.status === 'COMPLETED' && tr.duration)
+                              .reduce((sum: number, tr: any) => sum + (tr.duration || 0), 0)
+                            return totalMin > 0 ? (
+                              <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: '#2d7b95' }}>
+                                {formatDuration(totalMin)}
+                              </Typography>
+                            ) : (
+                              <Typography sx={{ color: '#94a3b8', fontSize: '0.875rem' }}>-</Typography>
+                            )
+                          })()}
+                        </TableCell>
                         <TableCell>
                           <Box sx={{ display: 'flex', justifyContent: 'center', gap: 0.5 }}>
                             <Tooltip title="צפייה">
@@ -501,23 +691,32 @@ const TasksPage: React.FC = () => {
                                 <span className="material-symbols-outlined" style={{ fontSize: 20 }}>visibility</span>
                               </IconButton>
                             </Tooltip>
-                            <Tooltip title="עריכה">
-                              <IconButton size="small" onClick={() => handleEdit(task)} sx={{ color: '#94a3b8', '&:hover': { color: '#64748b' } }}>
-                                <span className="material-symbols-outlined" style={{ fontSize: 20 }}>edit</span>
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="שכפול">
-                              <IconButton size="small" onClick={() => handleClone(task)} sx={{ color: '#94a3b8', '&:hover': { color: '#64748b' } }}>
-                                <span className="material-symbols-outlined" style={{ fontSize: 20 }}>content_copy</span>
-                              </IconButton>
-                            </Tooltip>
-                            {isAdmin && (
-                              <Tooltip title="מחיקה">
-                                <IconButton size="small" onClick={() => handleDelete(task)} sx={{ color: '#94a3b8', '&:hover': { color: '#ef4444', bgcolor: 'rgba(239,68,68,0.08)' } }}>
-                                  <span className="material-symbols-outlined" style={{ fontSize: 20 }}>delete</span>
+                            {!isClient && (
+                              <Tooltip title="עריכה">
+                                <IconButton size="small" onClick={() => handleEdit(task)} sx={{ color: '#94a3b8', '&:hover': { color: '#64748b' } }}>
+                                  <span className="material-symbols-outlined" style={{ fontSize: 20 }}>edit</span>
                                 </IconButton>
                               </Tooltip>
                             )}
+                            {!isClient && (
+                              <Tooltip title="שכפול">
+                                <IconButton size="small" onClick={() => handleClone(task)} sx={{ color: '#94a3b8', '&:hover': { color: '#64748b' } }}>
+                                  <span className="material-symbols-outlined" style={{ fontSize: 20 }}>content_copy</span>
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                            {canManageTimers && (
+                              <Tooltip title="תזמון">
+                                <IconButton size="small" onClick={() => { handleViewDetail(task); setDetailTab(3) }} sx={{ color: '#94a3b8', '&:hover': { color: '#2d7b95' } }}>
+                                  <span className="material-symbols-outlined" style={{ fontSize: 20 }}>schedule</span>
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                            <Tooltip title="מחיקה">
+                              <IconButton size="small" onClick={() => handleDelete(task)} sx={{ color: '#94a3b8', '&:hover': { color: '#ef4444', bgcolor: 'rgba(239,68,68,0.08)' } }}>
+                                <span className="material-symbols-outlined" style={{ fontSize: 20 }}>delete</span>
+                              </IconButton>
+                            </Tooltip>
                           </Box>
                         </TableCell>
                       </TableRow>
@@ -787,6 +986,82 @@ const TasksPage: React.FC = () => {
                 )}
                 {detailTab === 3 && (
                   <Box>
+                    {/* Total work time + Timer controls */}
+                    {(() => {
+                      const totalMinutes = (taskDetail.timeRecords || [])
+                        .filter((tr) => tr.status === 'COMPLETED' && tr.duration)
+                        .reduce((sum, tr) => sum + (tr.duration || 0), 0)
+                      const activeTimer = activeTimers.find(t => t.task?.id === taskDetail.id)
+
+                      return (
+                        <Box sx={{ mb: 3 }}>
+                          {/* Total work time card */}
+                          <Box sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            flexWrap: 'wrap',
+                            gap: 2,
+                            p: 2,
+                            borderRadius: '10px',
+                            bgcolor: alpha('#2d7b95', 0.05),
+                            border: '1px solid',
+                            borderColor: alpha('#2d7b95', 0.15),
+                            mb: 2,
+                          }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                              <span className="material-symbols-outlined" style={{ fontSize: 24, color: '#2d7b95' }}>schedule</span>
+                              <Box>
+                                <Typography sx={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>זמן עבודה כולל</Typography>
+                                <Typography sx={{ fontSize: '1.25rem', fontWeight: 700, color: '#2d7b95', fontVariantNumeric: 'tabular-nums', direction: 'ltr', textAlign: 'right' }}>
+                                  {formatDuration(totalMinutes)}
+                                </Typography>
+                              </Box>
+                            </Box>
+                            {canManageTimers && (
+                              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                                {activeTimer ? (
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                    <LiveTimer startTime={activeTimer.startTime} />
+                                    <Button
+                                      variant="contained"
+                                      size="small"
+                                      onClick={() => handleStopTimer(activeTimer.id)}
+                                      disabled={stoppingTimerId === activeTimer.id}
+                                      sx={{ bgcolor: '#ef4444', '&:hover': { bgcolor: '#dc2626' }, borderRadius: '8px', minWidth: 'auto', px: 1.5 }}
+                                    >
+                                      {stoppingTimerId === activeTimer.id ? <CircularProgress size={16} sx={{ color: 'white' }} /> : <span className="material-symbols-outlined" style={{ fontSize: 18 }}>stop</span>}
+                                    </Button>
+                                  </Box>
+                                ) : (
+                                  <Button
+                                    variant="contained"
+                                    size="small"
+                                    onClick={() => handleStartTimer(taskDetail.id)}
+                                    disabled={startingTimer || activeTimers.length >= 3}
+                                    startIcon={startingTimer ? <CircularProgress size={14} sx={{ color: 'white' }} /> : <span className="material-symbols-outlined" style={{ fontSize: 18 }}>play_arrow</span>}
+                                    sx={{ bgcolor: '#2d7b95', '&:hover': { bgcolor: '#256a80' }, borderRadius: '8px', fontWeight: 600 }}
+                                  >
+                                    התחל טיימר
+                                  </Button>
+                                )}
+                                <Button
+                                  variant="outlined"
+                                  size="small"
+                                  onClick={() => openManualEntry(taskDetail.id)}
+                                  startIcon={<span className="material-symbols-outlined" style={{ fontSize: 18 }}>edit_calendar</span>}
+                                  sx={{ borderColor: '#e2e8f0', color: '#64748b', borderRadius: '8px', fontWeight: 600, '&:hover': { borderColor: '#2d7b95', color: '#2d7b95' } }}
+                                >
+                                  הזנה ידנית
+                                </Button>
+                              </Box>
+                            )}
+                          </Box>
+                        </Box>
+                      )
+                    })()}
+
+                    {/* Time records table */}
                     {taskDetail.timeRecords && taskDetail.timeRecords.length > 0 ? (
                       <TableContainer>
                         <Table size="small">
@@ -794,16 +1069,36 @@ const TasksPage: React.FC = () => {
                             <TableRow>
                               <TableCell sx={{ bgcolor: '#f8fafc', fontWeight: 600, fontSize: '0.8125rem', color: '#64748b' }}>תאריך</TableCell>
                               <TableCell sx={{ bgcolor: '#f8fafc', fontWeight: 600, fontSize: '0.8125rem', color: '#64748b' }}>עובד</TableCell>
+                              <TableCell sx={{ bgcolor: '#f8fafc', fontWeight: 600, fontSize: '0.8125rem', color: '#64748b' }}>התחלה</TableCell>
+                              <TableCell sx={{ bgcolor: '#f8fafc', fontWeight: 600, fontSize: '0.8125rem', color: '#64748b' }}>סיום</TableCell>
                               <TableCell sx={{ bgcolor: '#f8fafc', fontWeight: 600, fontSize: '0.8125rem', color: '#64748b' }}>משך</TableCell>
+                              <TableCell sx={{ bgcolor: '#f8fafc', fontWeight: 600, fontSize: '0.8125rem', color: '#64748b' }}>סטטוס</TableCell>
                               <TableCell sx={{ bgcolor: '#f8fafc', fontWeight: 600, fontSize: '0.8125rem', color: '#64748b' }}>תיאור</TableCell>
                             </TableRow>
                           </TableHead>
                           <TableBody>
                             {taskDetail.timeRecords.map((tr) => (
-                              <TableRow key={tr.id}>
-                                <TableCell sx={{ fontSize: '0.875rem' }}>{formatDate(tr.date)}</TableCell>
+                              <TableRow key={tr.id} sx={tr.status === 'ACTIVE' ? { bgcolor: alpha('#2d7b95', 0.04) } : {}}>
+                                <TableCell sx={{ fontSize: '0.875rem' }}>{formatDate(tr.startTime || tr.date)}</TableCell>
                                 <TableCell sx={{ fontSize: '0.875rem', fontWeight: 500 }}>{tr.employee.firstName} {tr.employee.lastName}</TableCell>
-                                <TableCell sx={{ fontSize: '0.875rem', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{formatDuration(tr.duration)}</TableCell>
+                                <TableCell sx={{ fontSize: '0.875rem', fontVariantNumeric: 'tabular-nums', direction: 'ltr' }}>{formatTime(tr.startTime)}</TableCell>
+                                <TableCell sx={{ fontSize: '0.875rem', fontVariantNumeric: 'tabular-nums', direction: 'ltr' }}>{tr.endTime ? formatTime(tr.endTime) : '-'}</TableCell>
+                                <TableCell sx={{ fontSize: '0.875rem', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+                                  {tr.status === 'ACTIVE' ? <LiveTimer startTime={tr.startTime} /> : formatDuration(tr.duration)}
+                                </TableCell>
+                                <TableCell>
+                                  <Chip
+                                    label={tr.status === 'ACTIVE' ? 'פעיל' : 'הושלם'}
+                                    size="small"
+                                    sx={{
+                                      height: 22,
+                                      fontSize: '0.7rem',
+                                      fontWeight: 600,
+                                      bgcolor: tr.status === 'ACTIVE' ? '#dcfce7' : '#f1f5f9',
+                                      color: tr.status === 'ACTIVE' ? '#16a34a' : '#64748b',
+                                    }}
+                                  />
+                                </TableCell>
                                 <TableCell sx={{ fontSize: '0.875rem', color: '#64748b' }}>{tr.description || '-'}</TableCell>
                               </TableRow>
                             ))}
@@ -817,8 +1112,13 @@ const TasksPage: React.FC = () => {
                 )}
               </Box>
             </DialogContent>
-            <DialogActions sx={{ px: 3, py: 2, borderTop: '1px solid #f1f5f9' }}>
-              <Button onClick={() => { setDetailOpen(false); handleEdit(taskDetail) }} sx={{ color: '#64748b' }}>עריכה</Button>
+            <DialogActions sx={{ px: 3, py: 2, borderTop: '1px solid #f1f5f9', justifyContent: 'space-between' }}>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                {!isClient && (
+                  <Button onClick={() => { setDetailOpen(false); handleEdit(taskDetail) }} sx={{ color: '#64748b' }}>עריכה</Button>
+                )}
+                <Button onClick={() => handleDelete(taskDetail)} sx={{ color: '#ef4444' }}>מחיקה</Button>
+              </Box>
               <Button onClick={() => setDetailOpen(false)} variant="contained" sx={{ bgcolor: '#2d7b95', '&:hover': { bgcolor: 'rgba(45,123,149,0.9)' } }}>סגור</Button>
             </DialogActions>
           </>
@@ -835,6 +1135,77 @@ const TasksPage: React.FC = () => {
         onConfirm={confirmDelete}
         onCancel={() => { setDeleteDialogOpen(false); setTaskToDelete(null) }}
       />
+
+      {/* Manual Time Entry Dialog */}
+      <Dialog open={manualEntryOpen} onClose={() => setManualEntryOpen(false)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: '12px' } }}>
+        <DialogTitle sx={{ fontWeight: 700, fontSize: '1.05rem', borderBottom: '1px solid #f1f5f9', pb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 22, color: '#2d7b95' }}>edit_calendar</span>
+          הזנת תזמון ידני
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
+            <TextField
+              label="תאריך"
+              type="date"
+              value={manualForm.date}
+              onChange={(e) => setManualForm({ ...manualForm, date: e.target.value })}
+              fullWidth
+              size="small"
+              InputLabelProps={{ shrink: true }}
+            />
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <TextField
+                label="שעת התחלה"
+                type="time"
+                value={manualForm.startTime}
+                onChange={(e) => setManualForm({ ...manualForm, startTime: e.target.value })}
+                fullWidth
+                size="small"
+                InputLabelProps={{ shrink: true }}
+                inputProps={{ step: 60 }}
+              />
+              <TextField
+                label="שעת סיום"
+                type="time"
+                value={manualForm.endTime}
+                onChange={(e) => setManualForm({ ...manualForm, endTime: e.target.value })}
+                fullWidth
+                size="small"
+                InputLabelProps={{ shrink: true }}
+                inputProps={{ step: 60 }}
+              />
+            </Box>
+            {getManualDuration() && (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1.5, bgcolor: alpha('#2d7b95', 0.05), borderRadius: '8px' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#2d7b95' }}>timer</span>
+                <Typography sx={{ fontSize: '0.875rem', color: '#2d7b95', fontWeight: 600 }}>
+                  זמן עבודה: {getManualDuration()}
+                </Typography>
+              </Box>
+            )}
+            <TextField
+              label="תיאור (אופציונלי)"
+              value={manualForm.description}
+              onChange={(e) => setManualForm({ ...manualForm, description: e.target.value })}
+              fullWidth
+              size="small"
+              multiline
+              rows={2}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2, borderTop: '1px solid #f1f5f9' }}>
+          <Button onClick={() => setManualEntryOpen(false)} sx={{ color: '#64748b' }}>ביטול</Button>
+          <Button
+            onClick={handleManualEntry}
+            variant="contained"
+            disabled={savingManual || !manualForm.date || !manualForm.startTime || !manualForm.endTime}
+            sx={{ bgcolor: '#2d7b95', '&:hover': { bgcolor: 'rgba(45,123,149,0.9)' } }}
+          >
+            {savingManual ? 'שומר...' : 'שמור תזמון'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   )
 }

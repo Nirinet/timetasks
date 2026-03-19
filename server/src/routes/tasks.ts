@@ -245,25 +245,30 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
       });
     }
 
-    // CLIENT users can only change task status to specific values
+    // CLIENT users can edit priority freely, and status only if no time records
     if (req.user!.role === 'CLIENT') {
-      const allowedFields = ['status'];
-      const allowedStatuses = ['IN_PROGRESS', 'WAITING_CLIENT'];
+      const allowedFields = ['status', 'priority'];
       const requestedFields = Object.keys(req.body);
 
       const hasDisallowedFields = requestedFields.some(f => !allowedFields.includes(f));
       if (hasDisallowedFields) {
         return res.status(403).json({
           success: false,
-          message: 'לקוח יכול לעדכן רק את סטטוס המשימה'
+          message: 'לקוח יכול לעדכן עדיפות וסטטוס בלבד'
         });
       }
 
-      if (req.body.status && !allowedStatuses.includes(req.body.status)) {
-        return res.status(403).json({
-          success: false,
-          message: 'לקוח יכול לשנות סטטוס רק ל-"בטיפול" או "ממתין ללקוח"'
+      // Status changes only allowed if task has no time records (work not started)
+      if (req.body.status) {
+        const timeRecordCount = await prisma.timeRecord.count({
+          where: { taskId: req.params.id }
         });
+        if (timeRecordCount > 0) {
+          return res.status(403).json({
+            success: false,
+            message: 'לא ניתן לשנות סטטוס משימה שכבר התחילו לעבוד עליה'
+          });
+        }
       }
     }
 
@@ -301,15 +306,28 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
 });
 
 // Delete task
-router.delete('/:id', authenticateToken, requireAdminOrEmployee, async (req: AuthRequest, res, next) => {
+router.delete('/:id', authenticateToken, async (req: AuthRequest, res, next) => {
   try {
-    const task = await prisma.task.findUnique({
-      where: { id: req.params.id },
-      select: { id: true, title: true, projectId: true }
+    let whereClause: any = { id: req.params.id };
+    applyClientTaskFilter(whereClause, req.user!.clientEntityId, req.user!.role);
+
+    const task = await prisma.task.findFirst({
+      where: whereClause,
+      select: { id: true, title: true, projectId: true, _count: { select: { timeRecords: true } } }
     });
 
     if (!task) {
       return res.status(404).json({ success: false, message: 'משימה לא נמצאה' });
+    }
+
+    // CLIENT can only delete tasks with no time records
+    if (req.user!.role === 'CLIENT') {
+      if (task._count.timeRecords > 0) {
+        return res.status(403).json({
+          success: false,
+          message: 'לא ניתן למחוק משימה שכבר התחילו לעבוד עליה'
+        });
+      }
     }
 
     // Recursive delete helper
